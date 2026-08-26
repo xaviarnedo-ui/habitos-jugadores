@@ -215,7 +215,7 @@ async function loadAllData() {
   (checks || []).forEach(c => {
     if (!state.records[c.date]) state.records[c.date] = {};
     if (!state.records[c.date][c.player_id]) state.records[c.date][c.player_id] = {};
-    state.records[c.date][c.player_id][c.habit_id] = true;
+    state.records[c.date][c.player_id][c.habit_id] = c.done;
   });
 }
 
@@ -508,23 +508,27 @@ function renderPlayerToday(player) {
     habitList.innerHTML = '<div class="empty-state">Tu entrenador no te ha asignado hábitos para hoy.</div>';
   } else {
     myHabits.forEach(h => {
-      const checked = !!rec[h.id];
+      const answer = rec[h.id]; // true = hecho, false = no hecho, undefined = sin responder
       const card = document.createElement('div');
-      card.className = 'habit-card' + (checked ? ' checked' : '');
+      card.className = 'habit-card' + (answer === true ? ' checked' : answer === false ? ' declined' : '');
       const timeHtml = h.timeOfDay ? `<span style="display:block;font-size:0.75rem;color:var(--text-dim);font-weight:400;">${h.timeOfDay.slice(0, 5)}</span>` : '';
       card.innerHTML = `
         <span class="emoji">${h.emoji}</span>
         <span class="label">${h.label}${timeHtml}</span>
-        <span class="check-mark">${checked ? '✓' : '✗'}</span>
+        <div class="habit-answer">
+          <button class="answer-btn yes${answer === true ? ' active' : ''}" title="Lo he hecho">✓</button>
+          <button class="answer-btn no${answer === false ? ' active' : ''}" title="No lo he hecho">✗</button>
+        </div>
       `;
-      card.onclick = async () => {
-        if (checked) {
-          await supabase.from('checks').delete().match({ player_id: player.id, date: today, habit_id: h.id });
-        } else {
-          await supabase.from('checks').insert({ player_id: player.id, date: today, habit_id: h.id });
-        }
+      const setAnswer = async done => {
+        await supabase.from('checks').upsert(
+          { player_id: player.id, date: today, habit_id: h.id, done },
+          { onConflict: 'player_id,date,habit_id' }
+        );
         await refreshAndRender();
       };
+      card.querySelector('.answer-btn.yes').onclick = () => setAnswer(true);
+      card.querySelector('.answer-btn.no').onclick = () => setAnswer(false);
       habitList.appendChild(card);
     });
   }
@@ -907,8 +911,10 @@ function renderPlayerDetail(date) {
     html += '<div class="empty-state">Este jugador no tiene hábitos asignados este día.</div>';
   } else {
     myHabits.forEach(h => {
-      const done = !!rec[h.id];
-      html += `<div class="detail-habit-row"><span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${done ? 'cell-ok' : 'cell-bad'}">${done ? '✓' : '✗'}</span></div>`;
+      const answer = rec[h.id];
+      const mark = answer === true ? '✓' : answer === false ? '✗' : '–';
+      const cls = answer === true ? 'cell-ok' : answer === false ? 'cell-bad' : 'cell-no';
+      html += `<div class="detail-habit-row"><span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${cls}">${mark}</span></div>`;
     });
   }
   const fastingLines = [];

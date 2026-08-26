@@ -465,33 +465,37 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 11px 14px;
-  cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.habit-card:hover { border-color: var(--blue); }
 .habit-card.checked {
   border-color: var(--gold);
   background: var(--gold-light);
 }
+.habit-card.declined {
+  border-color: var(--loss);
+  background: rgba(214, 83, 74, 0.08);
+}
 .habit-card .emoji { font-size: 1.4rem; }
 .habit-card .label { flex: 1; font-size: 0.95rem; font-weight: 600; }
-.habit-card .check-mark {
-  width: 24px;
-  height: 24px;
+
+.habit-answer { display: flex; gap: 6px; flex-shrink: 0; }
+.answer-btn {
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 800;
-  flex-shrink: 0;
-  background: var(--loss);
-  color: #fff;
 }
-.habit-card.checked .check-mark {
-  background: var(--win);
-  color: #fff;
-}
+.answer-btn.yes.active { background: var(--win); border-color: var(--win); color: #fff; }
+.answer-btn.no.active { background: var(--loss); border-color: var(--loss); color: #fff; }
 
 /* ---------- Week strip ---------- */
 
