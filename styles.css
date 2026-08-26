@@ -325,7 +325,11 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
   padding: 14px;
 }
 
+.date-field { margin-bottom: 14px; }
+.date-field input[type="date"] { width: 100%; }
+
 .section-title {
+  display: block;
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 0.5px;
