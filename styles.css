@@ -257,7 +257,6 @@ body {
   color: var(--ink-soft);
   font-size: 0.85rem;
   margin-bottom: 10px;
-  text-transform: capitalize;
 }
 .field-row {
   display: flex;
