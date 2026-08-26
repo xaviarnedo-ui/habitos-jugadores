@@ -266,7 +266,7 @@ body {
 }
 .field-row input { min-width: 140px; }
 
-input[type="text"], input[type="date"], input[type="email"], input[type="number"], input[type="password"], select {
+input[type="text"], input[type="date"], input[type="time"], input[type="email"], input[type="number"], input[type="password"], select {
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--ink);
