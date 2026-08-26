@@ -63,6 +63,20 @@ function formatDateLabel(dateStr) {
   return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+function dateDaysBefore(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - days);
+  return todayKey(d);
+}
+
+function weekdayLabel(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long' });
+}
+
+function weekdayShortLabel(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
+}
+
 function getMondayOfWeek(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   const day = d.getDay(); // 0=Sun..6=Sat
@@ -455,6 +469,8 @@ function renderProfileCard(player) {
     const file = e.target.files[0];
     if (file) await uploadAvatarForPlayer(player, file, document.getElementById('avatarError'));
   };
+
+  document.getElementById('weightChartCard').innerHTML = weightChartHtml(player);
 }
 
 async function uploadAvatarForPlayer(player, file, errorEl) {
@@ -597,6 +613,45 @@ function getPreviousWeightEntry(player, beforeDate) {
   return { date, kg: player.weightLog[date] };
 }
 
+function weightChartHtml(player) {
+  const today = todayKey();
+  const dates = [];
+  for (let i = 6; i >= 0; i--) dates.push(dateDaysBefore(today, i));
+
+  const points = dates.map(d => ({ date: d, kg: player.weightLog[d] }));
+  const known = points.filter(p => p.kg !== undefined);
+  if (known.length < 2) {
+    return '<p class="hint-text" style="margin:0">Aún no hay suficientes registros de peso esta semana para la gráfica.</p>';
+  }
+
+  const kgs = known.map(p => p.kg);
+  const min = Math.min(...kgs);
+  const max = Math.max(...kgs);
+  const pad = Math.max(0.4, (max - min) * 0.25);
+  const yMin = min - pad;
+  const yMax = max + pad;
+  const w = 300, h = 100, padX = 14, padY = 20;
+  const stepX = (w - padX * 2) / (points.length - 1);
+  const scaleY = kg => padY + (h - padY * 2) - ((kg - yMin) / (yMax - yMin)) * (h - padY * 2);
+
+  const coords = points.map((p, i) => p.kg !== undefined ? { x: padX + i * stepX, y: scaleY(p.kg), kg: p.kg } : null);
+
+  let pathD = '';
+  coords.forEach(c => { if (c) pathD += (pathD === '' ? 'M' : 'L') + c.x.toFixed(1) + ',' + c.y.toFixed(1) + ' '; });
+
+  const dots = coords.map(c => c ? `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="3.5" fill="var(--navy)" />` : '').join('');
+  const labels = coords.map(c => c ? `<text x="${c.x.toFixed(1)}" y="${(c.y - 9).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--ink-soft)">${c.kg}</text>` : '').join('');
+  const dayLabels = dates.map(d => `<span>${weekdayShortLabel(d)}</span>`).join('');
+
+  return `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; display:block;">
+      <path d="${pathD.trim()}" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      ${dots}${labels}
+    </svg>
+    <div class="chart-day-labels">${dayLabels}</div>
+  `;
+}
+
 function renderWeightCard(player) {
   const today = todayKey();
   const box = document.getElementById('weightBox');
@@ -604,15 +659,17 @@ function renderWeightCard(player) {
   const previous = getPreviousWeightEntry(player, today);
 
   let trendHtml = '';
-  if (previous) {
-    if (current !== undefined) {
-      const diff = Math.round((current - previous.kg) * 10) / 10;
+  if (current !== undefined) {
+    const weekAgoDate = dateDaysBefore(today, 7);
+    const weekAgoKg = player.weightLog[weekAgoDate];
+    if (weekAgoKg !== undefined) {
+      const diff = Math.round((current - weekAgoKg) * 10) / 10;
       const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
       const sign = diff > 0 ? '+' : '';
-      trendHtml = `<p class="weight-trend ${cls}">${sign}${diff}kg desde el ${formatDateLabel(previous.date)} (${previous.kg}kg)</p>`;
-    } else {
-      trendHtml = `<p class="hint-text">Último peso registrado: ${previous.kg}kg (${formatDateLabel(previous.date)})</p>`;
+      trendHtml = `<p class="weight-trend ${cls}">${sign}${diff}kg vs. el ${weekdayLabel(today)} pasado</p>`;
     }
+  } else if (previous) {
+    trendHtml = `<p class="hint-text">Último peso registrado: ${previous.kg}kg (${formatDateLabel(previous.date)})</p>`;
   }
 
   box.innerHTML = `
@@ -820,6 +877,8 @@ function renderPlayerDetail(date) {
   if (fastingLines.length > 0) {
     html += `<div class="hint-text" style="margin-top:10px">${fastingLines.join('<br>')}</div>`;
   }
+
+  html += `<div class="section-title" style="margin:14px 0 6px">Peso · últimos 7 días</div>${weightChartHtml(player)}`;
 
   html += '</div>';
   panel.innerHTML = html;

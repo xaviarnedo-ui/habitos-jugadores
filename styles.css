@@ -606,14 +606,29 @@ table.dash tr:last-child td { border-bottom: none; }
 
 /* ---------- Weight ---------- */
 
+.add-player-row { display: flex; gap: 8px; align-items: center; }
+.add-player-row input[type="number"] { flex: 0 1 100px; }
+.add-player-row select { flex: 1; }
+.add-player-row button { flex-shrink: 0; }
+
 .weight-trend {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 700;
   margin: 8px 0 0;
+  white-space: nowrap;
 }
 .weight-trend.up { color: var(--loss); }
 .weight-trend.down { color: var(--win); }
 .weight-trend.flat { color: var(--ink-soft); }
+
+.chart-day-labels { display: flex; margin-top: 2px; }
+.chart-day-labels span {
+  flex: 1;
+  text-align: center;
+  font-size: 0.65rem;
+  color: var(--ink-soft);
+  text-transform: capitalize;
+}
 
 /* ---------- Player admin card (assignment editor) ---------- */
 
