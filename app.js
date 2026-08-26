@@ -5,6 +5,15 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const VAPID_PUBLIC_KEY = 'BIez-kUYmKbzOphKs5GPzQ44qguPuPk9faMa2vsGLZ8RYjfb235nBM_gSid-PDgNu36DPgMS1v78phRbaArY64A';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
 const WEEKDAYS = [
   { key: 'mon', short: 'L', label: 'Lunes' },
   { key: 'tue', short: 'M', label: 'Martes' },
@@ -149,7 +158,7 @@ async function loadAllData() {
     supabase.from('settings').select('*'),
   ]);
 
-  state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label }));
+  state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label, timeOfDay: h.time_of_day, notifyEnabled: h.notify_enabled }));
   state.coachAuthId = settingsRows && settingsRows[0] ? settingsRows[0].coach_auth_id : null;
 
   const assignmentsByPlayer = {};
@@ -444,26 +453,25 @@ function renderProfileCard(player) {
   };
   document.getElementById('avatarInput').onchange = async (e) => {
     const file = e.target.files[0];
-    if (file) await uploadAvatar(player, file);
+    if (file) await uploadAvatarForPlayer(player, file, document.getElementById('avatarError'));
   };
 }
 
-async function uploadAvatar(player, file) {
-  const errorEl = document.getElementById('avatarError');
-  errorEl.textContent = 'Subiendo foto...';
+async function uploadAvatarForPlayer(player, file, errorEl) {
+  if (errorEl) errorEl.textContent = 'Subiendo foto...';
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${player.authId}/${Date.now()}.${ext}`;
+  const path = `${player.id}/${Date.now()}.${ext}`;
 
   const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file);
   if (uploadError) {
-    errorEl.textContent = 'No se pudo subir la foto. Inténtalo de nuevo.';
+    if (errorEl) errorEl.textContent = 'No se pudo subir la foto. Inténtalo de nuevo.';
     return;
   }
 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   const { error: dbError } = await supabase.from('players').update({ avatar_url: data.publicUrl }).eq('id', player.id);
   if (dbError) {
-    errorEl.textContent = 'La foto se subió pero no se pudo guardar. Inténtalo de nuevo.';
+    if (errorEl) errorEl.textContent = 'La foto se subió pero no se pudo guardar. Inténtalo de nuevo.';
     return;
   }
   await refreshAndRender();
@@ -486,9 +494,10 @@ function renderPlayerToday(player) {
       const checked = !!rec[h.id];
       const card = document.createElement('div');
       card.className = 'habit-card' + (checked ? ' checked' : '');
+      const timeHtml = h.timeOfDay ? `<span style="display:block;font-size:0.75rem;color:var(--text-dim);font-weight:400;">${h.timeOfDay.slice(0, 5)}</span>` : '';
       card.innerHTML = `
         <span class="emoji">${h.emoji}</span>
-        <span class="label">${h.label}</span>
+        <span class="label">${h.label}${timeHtml}</span>
         <span class="check-mark">${checked ? '✓' : ''}</span>
       `;
       card.onclick = async () => {
@@ -512,6 +521,73 @@ function renderPlayerToday(player) {
   renderWeightCard(player);
   renderFastingCard(player);
   renderWeekStrip(player);
+  renderNotifyBox(player);
+}
+
+/* ---------- PUSH NOTIFICATIONS ---------- */
+
+async function getExistingPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  const registration = await navigator.serviceWorker.register('sw.js');
+  return registration.pushManager.getSubscription();
+}
+
+async function renderNotifyBox(player) {
+  const box = document.getElementById('notifyBox');
+  if (!box) return;
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    box.innerHTML = '<p class="hint-text">Este navegador no admite notificaciones.</p>';
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    box.innerHTML = '<p class="hint-text">Has bloqueado las notificaciones para esta app. Actívalas desde los ajustes del navegador.</p>';
+    return;
+  }
+
+  const sub = await getExistingPushSubscription();
+  box.innerHTML = `
+    <p class="hint-text">Recibe un aviso cuando se acerque la hora de un hábito activado por tu entrenador.</p>
+    <button class="${sub ? 'ghost' : 'primary'}" id="notifyToggleBtn">${sub ? 'Desactivar notificaciones' : 'Activar notificaciones'}</button>
+    <p class="hint-text" id="notifyError"></p>
+  `;
+  document.getElementById('notifyToggleBtn').onclick = () => sub ? disablePush(player, sub) : enablePush(player);
+}
+
+async function enablePush(player) {
+  const errorEl = document.getElementById('notifyError');
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      if (errorEl) errorEl.textContent = 'No has dado permiso para las notificaciones.';
+      return;
+    }
+    const registration = await navigator.serviceWorker.register('sw.js');
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    const json = subscription.toJSON();
+    const { error } = await supabase.from('push_subscriptions').upsert({
+      player_id: player.id,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth,
+    }, { onConflict: 'endpoint' });
+    if (error) {
+      if (errorEl) errorEl.textContent = 'No se pudo activar. Inténtalo de nuevo.';
+      return;
+    }
+    await renderNotifyBox(player);
+  } catch (e) {
+    if (errorEl) errorEl.textContent = 'No se pudo activar. Inténtalo de nuevo.';
+  }
+}
+
+async function disablePush(player, subscription) {
+  await supabase.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
+  await subscription.unsubscribe();
+  await renderNotifyBox(player);
 }
 
 function getPreviousWeightEntry(player, beforeDate) {
@@ -777,8 +853,26 @@ function renderAdminPlayers() {
     const infoSpan = document.createElement('span');
     infoSpan.className = 'flex1';
     const nameDiv = document.createElement('div');
-    nameDiv.innerHTML = `${avatarThumbHtml(p)}${p.name}`;
+    const avatarBtn = document.createElement('span');
+    avatarBtn.innerHTML = avatarThumbHtml(p);
+    avatarBtn.style.cursor = 'pointer';
+    avatarBtn.title = 'Cambiar foto';
+    const avatarFileInput = document.createElement('input');
+    avatarFileInput.type = 'file';
+    avatarFileInput.accept = 'image/*';
+    avatarFileInput.style.display = 'none';
+    const avatarErr = document.createElement('div');
+    avatarErr.className = 'hint-text';
+    avatarBtn.onclick = () => avatarFileInput.click();
+    avatarFileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) await uploadAvatarForPlayer(p, file, avatarErr);
+    };
+    nameDiv.appendChild(avatarBtn);
+    nameDiv.appendChild(document.createTextNode(p.name));
+    nameDiv.appendChild(avatarFileInput);
     infoSpan.appendChild(nameDiv);
+    infoSpan.appendChild(avatarErr);
 
     if (editingPlayerEmail === p.id) {
       const editRow = document.createElement('div');
@@ -959,6 +1053,31 @@ function renderAdminHabits() {
     const row = document.createElement('div');
     row.className = 'admin-row';
     row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.value = h.timeOfDay ? h.timeOfDay.slice(0, 5) : '';
+    timeInput.style.flex = '0 0 110px';
+    timeInput.onchange = async () => {
+      const time_of_day = timeInput.value || null;
+      const updates = { time_of_day };
+      if (!time_of_day && h.notifyEnabled) updates.notify_enabled = false;
+      await supabase.from('habits').update(updates).eq('id', h.id);
+      await refreshAndRender();
+    };
+    row.appendChild(timeInput);
+
+    const notifyBtn = document.createElement('button');
+    notifyBtn.className = h.notifyEnabled ? 'primary' : 'ghost';
+    notifyBtn.textContent = h.notifyEnabled ? '🔔' : '🔕';
+    notifyBtn.title = h.timeOfDay ? (h.notifyEnabled ? 'Aviso activado' : 'Activar aviso') : 'Pon una hora primero';
+    notifyBtn.disabled = !h.timeOfDay;
+    notifyBtn.onclick = async () => {
+      await supabase.from('habits').update({ notify_enabled: !h.notifyEnabled }).eq('id', h.id);
+      await refreshAndRender();
+    };
+    row.appendChild(notifyBtn);
+
     const delBtn = document.createElement('button');
     delBtn.className = 'danger';
     delBtn.textContent = 'Eliminar';
@@ -974,12 +1093,14 @@ function renderAdminHabits() {
 async function addAdminHabit() {
   const emojiInput = document.getElementById('adminNewHabitEmoji');
   const labelInput = document.getElementById('adminNewHabitLabel');
+  const timeInput = document.getElementById('adminNewHabitTime');
   const emoji = emojiInput.value.trim() || '✅';
   const label = labelInput.value.trim();
   if (!label) return;
-  await supabase.from('habits').insert({ emoji, label, sort_order: state.habits.length + 1 });
+  await supabase.from('habits').insert({ emoji, label, sort_order: state.habits.length + 1, time_of_day: timeInput.value || null });
   emojiInput.value = '';
   labelInput.value = '';
+  timeInput.value = '';
   await refreshAndRender();
 }
 
