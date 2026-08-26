@@ -1052,7 +1052,20 @@ function renderAdminHabits() {
   state.habits.forEach(h => {
     const row = document.createElement('div');
     row.className = 'admin-row';
-    row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+
+    const head = document.createElement('div');
+    head.className = 'admin-row-head';
+    head.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.textContent = 'Eliminar';
+    delBtn.onclick = async () => {
+      await supabase.from('habits').delete().eq('id', h.id);
+      await refreshAndRender();
+    };
+    head.appendChild(delBtn);
+    row.appendChild(head);
 
     const controls = document.createElement('div');
     controls.className = 'admin-row-controls';
@@ -1060,7 +1073,7 @@ function renderAdminHabits() {
     const timeInput = document.createElement('input');
     timeInput.type = 'time';
     timeInput.value = h.timeOfDay ? h.timeOfDay.slice(0, 5) : '';
-    timeInput.style.flex = '0 0 110px';
+    timeInput.style.flex = '1';
     timeInput.onchange = async () => {
       const time_of_day = timeInput.value || null;
       const updates = { time_of_day };
@@ -1080,15 +1093,6 @@ function renderAdminHabits() {
       await refreshAndRender();
     };
     controls.appendChild(notifyBtn);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'danger';
-    delBtn.textContent = 'Eliminar';
-    delBtn.onclick = async () => {
-      await supabase.from('habits').delete().eq('id', h.id);
-      await refreshAndRender();
-    };
-    controls.appendChild(delBtn);
 
     row.appendChild(controls);
     box.appendChild(row);
