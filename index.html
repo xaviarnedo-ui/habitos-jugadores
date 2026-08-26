@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Hábitos</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="portal">
+  <div class="shell">
+
+    <header class="topbar">
+      <div class="topbar-left">
+        <img src="assets/escudo.png" alt="Escudo del club" class="crest-sm">
+        <div class="topbar-titles">
+          <div class="topbar-title display" id="topbarTitle">HÁBITOS</div>
+          <div class="topbar-subtitle" id="topbarSubtitle">Atlético Baleares</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="logoutBtn" title="Cerrar sesión" style="display:none">⏻</button>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+
+      <!-- LOGIN -->
+      <section id="screen-login" class="screen active">
+        <div class="login-wrap">
+          <div id="loginFormBox">
+            <div class="auth-tabs">
+              <div class="auth-tab active" data-mode="signin">Iniciar sesión</div>
+              <div class="auth-tab" data-mode="signup">Registrarme</div>
+            </div>
+            <p class="field-label" id="authHint">Entra con tu email y contraseña.</p>
+            <div class="field-row">
+              <input type="email" id="authEmailInput" placeholder="tu@email.com" autocomplete="email">
+            </div>
+            <div class="field-row">
+              <input type="password" id="authPasswordInput" placeholder="Contraseña" autocomplete="current-password">
+              <button class="primary" id="authSubmitBtn">Entrar</button>
+            </div>
+            <p class="hint-text" id="loginMessage"></p>
+          </div>
+
+          <div id="bootstrapBox" class="card" style="display:none">
+            <p>Todavía no hay ningún entrenador configurado.</p>
+            <p>¿Quieres entrar como entrenador con esta cuenta?</p>
+            <p><strong id="bootstrapEmailLabel"></strong></p>
+            <div class="field-row">
+              <button class="primary" id="bootstrapYesBtn">Sí, soy el entrenador</button>
+              <button class="ghost" id="bootstrapNoBtn">No</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PLAYER -->
+      <section id="screen-player" class="screen">
+
+        <div class="tab-content active" data-tab="hoy" id="tab-player-hoy">
+          <p class="field-label" id="todayDateLabel"></p>
+          <div class="card stat-hero">
+            <div class="stat-hero-value display mono" id="todayPct">0%</div>
+            <div class="stat-hero-label">cumplimiento de hoy</div>
+            <div class="progress-bar-track"><div class="progress-bar-fill" id="todayBarFill" style="width:0%"></div></div>
+          </div>
+          <div class="habit-list" id="habitList"></div>
+
+          <div class="section-title">Peso de hoy</div>
+          <div class="card" id="weightBox"></div>
+
+          <div class="section-title">Ayuno intermitente</div>
+          <div class="card" id="fastingBox"></div>
+        </div>
+
+        <div class="tab-content" data-tab="semana" id="tab-player-semana">
+          <div class="section-title">Últimos 7 días</div>
+          <div class="week-strip" id="weekStrip"></div>
+        </div>
+
+        <div class="tab-content" data-tab="perfil" id="tab-player-perfil">
+          <div class="card profile-card" id="profileCard"></div>
+        </div>
+
+      </section>
+
+      <!-- COACH -->
+      <section id="screen-coach" class="screen">
+
+        <div class="tab-content active" data-tab="equipo" id="tab-coach-equipo">
+          <div class="field-row">
+            <label for="coachDatePicker" class="field-label" style="margin:0">Fecha</label>
+            <input type="date" id="coachDatePicker">
+          </div>
+
+          <div class="card stat-hero">
+            <div class="stat-hero-value display mono" id="teamPct">0%</div>
+            <div class="stat-hero-label">cumplimiento del equipo</div>
+          </div>
+
+          <div id="dashTableWrap" class="table-wrap"></div>
+          <div id="playerDetailPanel"></div>
+        </div>
+
+        <div class="tab-content" data-tab="habitos" id="tab-coach-habitos">
+          <div class="section-title">Batería de hábitos</div>
+          <p class="hint-text">El catálogo completo de hábitos disponibles. Luego eliges cuáles aplican a cada jugador.</p>
+          <div class="card">
+            <div class="admin-list" id="adminHabitList"></div>
+            <div class="field-row">
+              <input type="text" id="adminNewHabitEmoji" placeholder="Emoji" style="flex: 0 0 70px;">
+              <input type="text" id="adminNewHabitLabel" placeholder="Nombre del hábito">
+              <button class="primary" id="adminAddHabitBtn">Añadir</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" data-tab="jugadores" id="tab-coach-jugadores">
+          <div class="section-title">Jugadores y sus hábitos asignados</div>
+          <p class="hint-text">Añade al jugador con su nombre y email. Cuando se registre en la app con ese mismo email, quedará vinculado automáticamente.</p>
+          <div class="admin-list" id="adminPlayerList"></div>
+          <div class="card">
+            <div class="field-row">
+              <input type="text" id="adminNewPlayerInput" placeholder="Nombre del jugador">
+              <input type="email" id="adminNewPlayerEmailInput" placeholder="Email del jugador">
+              <button class="primary" id="adminAddPlayerBtn">Añadir jugador</button>
+            </div>
+            <p class="hint-text" id="adminAddPlayerError"></p>
+          </div>
+        </div>
+
+        <div class="tab-content" data-tab="ajustes" id="tab-coach-ajustes">
+          <div class="section-title">Ajustes</div>
+          <div class="card">
+            <div class="settings-row">
+              <span class="flex1">Cuenta de entrenador</span>
+              <strong id="coachEmailLabel"></strong>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <nav class="bottomnav" id="bottomnavPlayer" style="display:none">
+      <button class="nav-item active" data-tab="hoy"><span class="nav-icon">🏠</span><span class="nav-label">Hoy</span></button>
+      <button class="nav-item" data-tab="semana"><span class="nav-icon">📅</span><span class="nav-label">Semana</span></button>
+      <button class="nav-item" data-tab="perfil"><span class="nav-icon">👤</span><span class="nav-label">Perfil</span></button>
+    </nav>
+
+    <nav class="bottomnav" id="bottomnavCoach" style="display:none">
+      <button class="nav-item active" data-tab="equipo"><span class="nav-icon">📋</span><span class="nav-label">Equipo</span></button>
+      <button class="nav-item" data-tab="habitos"><span class="nav-icon">✅</span><span class="nav-label">Hábitos</span></button>
+      <button class="nav-item" data-tab="jugadores"><span class="nav-icon">👥</span><span class="nav-label">Jugadores</span></button>
+      <button class="nav-item" data-tab="ajustes"><span class="nav-icon">⚙️</span><span class="nav-label">Ajustes</span></button>
+    </nav>
+
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

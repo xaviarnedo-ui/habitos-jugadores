@@ -1,0 +1,9 @@
+.DS_Store
+supabase-diagnostic-temp.sql
+supabase-diagnostic-temp2.sql
+supabase-schema-avatars.sql
+supabase-schema-avatars-fix.sql
+supabase-schema-avatars-fix2.sql
+supabase-schema-avatars-disable-rls.sql
+supabase-schema-avatars-final.sql
+supabase-support-ticket.md
