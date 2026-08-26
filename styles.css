@@ -560,6 +560,7 @@ table.dash td.name-cell { text-align: left; font-weight: 700; }
 table.dash tr:last-child td { border-bottom: none; }
 .cell-ok { color: var(--win); font-size: 1.1rem; }
 .cell-no { color: var(--ink-soft); opacity: 0.5; }
+.cell-bad { color: var(--loss); font-size: 1.1rem; }
 .total-cell { font-weight: 700; }
 
 /* ---------- Admin / list rows ---------- */
@@ -729,9 +730,10 @@ table.dash tr:last-child td { border-bottom: none; }
 .detail-habit-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0;
+  gap: 8px;
+  padding: 5px 0;
   border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
 }
 .detail-habit-row:last-child { border-bottom: none; }
 .assigned-count { font-size: 0.78rem; color: var(--ink-soft); font-weight: 400; }

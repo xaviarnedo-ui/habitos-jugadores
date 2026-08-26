@@ -471,6 +471,7 @@ function renderProfileCard(player) {
   };
 
   document.getElementById('weightChartCard').innerHTML = weightChartHtml(player);
+  document.getElementById('fastingChartCard').innerHTML = fastingChartHtml(player);
 }
 
 async function uploadAvatarForPlayer(player, file, errorEl) {
@@ -647,6 +648,52 @@ function weightChartHtml(player) {
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; display:block;">
       <path d="${pathD.trim()}" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
       ${dots}${labels}
+    </svg>
+    <div class="chart-day-labels">${dayLabels}</div>
+  `;
+}
+
+function fastingChartHtml(player) {
+  const today = todayKey();
+  const dates = [];
+  for (let i = 6; i >= 0; i--) dates.push(dateDaysBefore(today, i));
+  const goal = player.fasting.goalHours || 16;
+
+  const entries = dates.map(d => {
+    const entry = player.fasting.history.find(h => h.date === d);
+    return { date: d, hours: entry ? entry.hours : null };
+  });
+  const known = entries.filter(e => e.hours !== null);
+  if (known.length === 0) {
+    return '<p class="hint-text" style="margin:0">Aún no hay ayunos completados esta semana.</p>';
+  }
+
+  const maxHours = Math.max(goal, ...known.map(e => e.hours)) * 1.15;
+  const w = 300, h = 100, padX = 14, padBottom = 20, padTop = 16;
+  const barSlot = (w - padX * 2) / entries.length;
+  const barWidth = barSlot * 0.5;
+  const usableH = h - padTop - padBottom;
+
+  let bars = '';
+  entries.forEach((e, i) => {
+    const cx = padX + i * barSlot + barSlot / 2;
+    if (e.hours === null) {
+      bars += `<rect x="${(cx - barWidth / 2).toFixed(1)}" y="${(h - padBottom - 3).toFixed(1)}" width="${barWidth.toFixed(1)}" height="3" rx="1.5" fill="var(--line)" />`;
+      return;
+    }
+    const barH = Math.max(4, (e.hours / maxHours) * usableH);
+    const y = h - padBottom - barH;
+    const color = e.hours >= goal ? 'var(--win)' : 'var(--loss)';
+    bars += `<rect x="${(cx - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barH.toFixed(1)}" rx="3" fill="${color}" />`;
+    bars += `<text x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--ink-soft)">${e.hours}h</text>`;
+  });
+
+  const dayLabels = dates.map(d => `<span>${weekdayShortLabel(d)}</span>`).join('');
+
+  return `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; display:block;">
+      <line x1="${padX}" y1="${(h - padBottom).toFixed(1)}" x2="${(w - padX).toFixed(1)}" y2="${(h - padBottom).toFixed(1)}" stroke="var(--line)" stroke-width="1" />
+      ${bars}
     </svg>
     <div class="chart-day-labels">${dayLabels}</div>
   `;
@@ -861,7 +908,7 @@ function renderPlayerDetail(date) {
   } else {
     myHabits.forEach(h => {
       const done = !!rec[h.id];
-      html += `<div class="detail-habit-row"><span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${done ? 'cell-ok' : 'cell-no'}">${done ? '✓' : '–'}</span></div>`;
+      html += `<div class="detail-habit-row"><span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${done ? 'cell-ok' : 'cell-bad'}">${done ? '✓' : '✗'}</span></div>`;
     });
   }
   const fastingLines = [];
@@ -879,6 +926,7 @@ function renderPlayerDetail(date) {
   }
 
   html += `<div class="section-title" style="margin:14px 0 6px">Peso · últimos 7 días</div>${weightChartHtml(player)}`;
+  html += `<div class="section-title" style="margin:14px 0 6px">Ayuno · últimos 7 días</div>${fastingChartHtml(player)}`;
 
   html += '</div>';
   panel.innerHTML = html;
