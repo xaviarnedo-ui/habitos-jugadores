@@ -750,7 +750,7 @@ function renderCoach() {
     wrap.innerHTML = '<div class="empty-state">Todavía no hay jugadores añadidos.</div>';
     document.getElementById('teamPct').textContent = '—';
   } else {
-    let html = '<table class="dash"><thead><tr><th style="text-align:left">Jugador</th><th>Asignados</th><th>Hoy</th><th>%</th><th>Peso</th></tr></thead><tbody>';
+    let html = '<table class="dash"><thead><tr><th style="text-align:left">Jugador</th><th>Asig.</th><th>Hoy</th><th>%</th><th>Peso</th></tr></thead><tbody>';
 
     state.players.forEach(p => {
       const myHabits = habitsForOnDate(p, date);
