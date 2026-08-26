@@ -460,11 +460,11 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
 .habit-card {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 11px 14px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -473,23 +473,24 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
   border-color: var(--gold);
   background: var(--gold-light);
 }
-.habit-card .emoji { font-size: 1.6rem; }
-.habit-card .label { flex: 1; font-size: 1rem; font-weight: 600; }
+.habit-card .emoji { font-size: 1.4rem; }
+.habit-card .label { flex: 1; font-size: 0.95rem; font-weight: 600; }
 .habit-card .check-mark {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: 2px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 800;
   flex-shrink: 0;
+  background: var(--loss);
+  color: #fff;
 }
 .habit-card.checked .check-mark {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: #3a2c05;
+  background: var(--win);
+  color: #fff;
 }
 
 /* ---------- Week strip ---------- */

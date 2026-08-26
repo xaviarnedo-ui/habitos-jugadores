@@ -515,7 +515,7 @@ function renderPlayerToday(player) {
       card.innerHTML = `
         <span class="emoji">${h.emoji}</span>
         <span class="label">${h.label}${timeHtml}</span>
-        <span class="check-mark">${checked ? '✓' : ''}</span>
+        <span class="check-mark">${checked ? '✓' : '✗'}</span>
       `;
       card.onclick = async () => {
         if (checked) {
