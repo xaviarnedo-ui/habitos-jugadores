@@ -1054,6 +1054,9 @@ function renderAdminHabits() {
     row.className = 'admin-row';
     row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
 
+    const controls = document.createElement('div');
+    controls.className = 'admin-row-controls';
+
     const timeInput = document.createElement('input');
     timeInput.type = 'time';
     timeInput.value = h.timeOfDay ? h.timeOfDay.slice(0, 5) : '';
@@ -1065,7 +1068,7 @@ function renderAdminHabits() {
       await supabase.from('habits').update(updates).eq('id', h.id);
       await refreshAndRender();
     };
-    row.appendChild(timeInput);
+    controls.appendChild(timeInput);
 
     const notifyBtn = document.createElement('button');
     notifyBtn.className = h.notifyEnabled ? 'primary' : 'ghost';
@@ -1076,7 +1079,7 @@ function renderAdminHabits() {
       await supabase.from('habits').update({ notify_enabled: !h.notifyEnabled }).eq('id', h.id);
       await refreshAndRender();
     };
-    row.appendChild(notifyBtn);
+    controls.appendChild(notifyBtn);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'danger';
@@ -1085,7 +1088,9 @@ function renderAdminHabits() {
       await supabase.from('habits').delete().eq('id', h.id);
       await refreshAndRender();
     };
-    row.appendChild(delBtn);
+    controls.appendChild(delBtn);
+
+    row.appendChild(controls);
     box.appendChild(row);
   });
 }
