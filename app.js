@@ -161,6 +161,7 @@ async function loadAllData() {
     { data: fastingSessions },
     { data: fastingHistory },
     { data: settingsRows },
+    { data: checkins },
   ] = await Promise.all([
     supabase.from('habits').select('*').order('sort_order'),
     supabase.from('players').select('*').order('name'),
@@ -170,6 +171,7 @@ async function loadAllData() {
     supabase.from('fasting_sessions').select('*'),
     supabase.from('fasting_history').select('*'),
     supabase.from('settings').select('*'),
+    supabase.from('daily_checkins').select('*'),
   ]);
 
   state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label, timeOfDay: h.time_of_day, notifyEnabled: h.notify_enabled }));
@@ -196,6 +198,12 @@ async function loadAllData() {
     weightsByPlayer[w.player_id][w.date] = Number(w.kg);
   });
 
+  const checkinsByPlayer = {};
+  (checkins || []).forEach(c => {
+    if (!checkinsByPlayer[c.player_id]) checkinsByPlayer[c.player_id] = {};
+    checkinsByPlayer[c.player_id][c.date] = { sleep: c.sleep, energy: c.energy };
+  });
+
   state.players = (players || []).map(p => ({
     id: p.id,
     authId: p.auth_id,
@@ -204,6 +212,7 @@ async function loadAllData() {
     avatarUrl: p.avatar_url || null,
     habitsByDay: assignmentsByPlayer[p.id] || emptyWeekMap(),
     weightLog: weightsByPlayer[p.id] || {},
+    wellness: checkinsByPlayer[p.id] || {},
     fasting: {
       activeStart: fastingSessionByPlayer[p.id] ? fastingSessionByPlayer[p.id].active_start : null,
       goalHours: fastingSessionByPlayer[p.id] ? fastingSessionByPlayer[p.id].goal_hours : 16,
@@ -539,6 +548,7 @@ function renderPlayerToday(player) {
   document.getElementById('todayPct').textContent = total ? pct + '%' : '–';
   document.getElementById('todayBarFill').style.width = pct + '%';
 
+  renderWellnessCard(player);
   renderWeightCard(player);
   renderFastingCard(player);
   renderWeekStrip(player);
@@ -701,6 +711,58 @@ function fastingChartHtml(player) {
     </svg>
     <div class="chart-day-labels">${dayLabels}</div>
   `;
+}
+
+const SLEEP_OPTIONS = [
+  { value: 1, emoji: '😣', label: 'Muy mal' },
+  { value: 2, emoji: '🙁', label: 'Mal' },
+  { value: 3, emoji: '😐', label: 'Regular' },
+  { value: 4, emoji: '🙂', label: 'Bien' },
+  { value: 5, emoji: '😄', label: 'Muy bien' },
+];
+const ENERGY_OPTIONS = [
+  { value: 1, emoji: '🥱', label: 'Muy cansado' },
+  { value: 2, emoji: '😪', label: 'Cansado' },
+  { value: 3, emoji: '😐', label: 'Regular' },
+  { value: 4, emoji: '🙂', label: 'Fresco' },
+  { value: 5, emoji: '⚡', label: 'Muy fresco' },
+];
+
+function moodRowHtml(options, selected) {
+  return options.map(o => `
+    <button class="mood-btn${selected === o.value ? ' active' : ''}" data-value="${o.value}">
+      <span class="mood-emoji">${o.emoji}</span>
+      <span class="mood-label">${o.label}</span>
+    </button>
+  `).join('');
+}
+
+function renderWellnessCard(player) {
+  const today = todayKey();
+  const box = document.getElementById('wellnessBox');
+  const entry = player.wellness[today] || {};
+
+  box.innerHTML = `
+    <p class="field-label" style="margin-bottom:8px">¿Qué tal has dormido hoy?</p>
+    <div class="mood-row" id="sleepRow">${moodRowHtml(SLEEP_OPTIONS, entry.sleep)}</div>
+    <p class="field-label" style="margin:16px 0 8px">¿Cómo te sientes hoy?</p>
+    <div class="mood-row" id="energyRow">${moodRowHtml(ENERGY_OPTIONS, entry.energy)}</div>
+  `;
+
+  const setMood = async (field, value) => {
+    await supabase.from('daily_checkins').upsert(
+      { player_id: player.id, date: today, [field]: value },
+      { onConflict: 'player_id,date' }
+    );
+    await refreshAndRender();
+  };
+
+  box.querySelectorAll('#sleepRow .mood-btn').forEach(btn => {
+    btn.onclick = () => setMood('sleep', Number(btn.dataset.value));
+  });
+  box.querySelectorAll('#energyRow .mood-btn').forEach(btn => {
+    btn.onclick = () => setMood('energy', Number(btn.dataset.value));
+  });
 }
 
 function renderWeightCard(player) {
