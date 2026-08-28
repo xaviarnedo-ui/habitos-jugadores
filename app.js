@@ -929,17 +929,17 @@ function renderWeekDayDetail(player) {
   }
 
   const lines = [];
-  if (player.weightLog[date] !== undefined) lines.push(`⚖️ Peso: ${player.weightLog[date]}kg`);
+  if (player.weightLog[date] !== undefined) lines.push(`Peso: ${player.weightLog[date]}kg`);
   const histEntry = player.fasting.history.find(h => h.date === date);
   if (histEntry) lines.push(`✅ Ayuno completado: ${histEntry.hours}h`);
   const wellness = player.wellness[date];
   if (wellness && wellness.sleep) {
     const opt = SLEEP_OPTIONS.find(o => o.value === wellness.sleep);
-    lines.push(`${opt ? opt.emoji : '😴'} Sueño: ${opt ? opt.label : wellness.sleep}`);
+    lines.push(`Sueño: ${opt ? opt.label : wellness.sleep}`);
   }
   if (wellness && wellness.energy) {
     const opt = ENERGY_OPTIONS.find(o => o.value === wellness.energy);
-    lines.push(`${opt ? opt.emoji : '⚡'} Energía: ${opt ? opt.label : wellness.energy}`);
+    lines.push(`Energía: ${opt ? opt.label : wellness.energy}`);
   }
   if (lines.length > 0) {
     html += `<div class="hint-text" style="margin-top:10px">${lines.join('<br>')}</div>`;
