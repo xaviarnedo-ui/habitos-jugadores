@@ -110,6 +110,7 @@ let state = {
   session: null, // { type: 'coach', email } | { type: 'player', playerId }
 };
 let selectedDetailPlayer = null; // player id
+let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
 let playerEmailEditError = '';
 const adminSelectedDay = {}; // playerId -> weekday key, UI-only state
@@ -892,12 +893,64 @@ function renderWeekStrip(player) {
     const done = myHabits.filter(h => rec[h.id]).length;
     const pct = total ? Math.round((done / total) * 100) : null;
     const cell = document.createElement('div');
-    cell.className = 'week-day' + (i === 0 ? ' today' : '');
+    cell.className = 'week-day' + (i === 0 ? ' today' : '') + (selectedWeekDate === key ? ' selected' : '');
     const label = d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
     const tier = pctTierClass(pct);
     cell.innerHTML = `${label}<span class="pct ${tier} mono">${pct === null ? '–' : pct + '%'}</span>`;
+    cell.onclick = () => {
+      selectedWeekDate = selectedWeekDate === key ? null : key;
+      renderWeekStrip(player);
+    };
     strip.appendChild(cell);
   }
+  renderWeekDayDetail(player);
+}
+
+function renderWeekDayDetail(player) {
+  const panel = document.getElementById('weekDayDetailPanel');
+  if (!selectedWeekDate) {
+    panel.innerHTML = '';
+    return;
+  }
+  const date = selectedWeekDate;
+  const myHabits = habitsForOnDate(player, date);
+  const rec = (state.records[date] && state.records[date][player.id]) || {};
+
+  let html = `<div class="detail-panel"><div class="detail-head"><strong>${formatDateLabel(date)}</strong><button class="pill-link" id="closeWeekDayBtn">Cerrar</button></div>`;
+  if (myHabits.length === 0) {
+    html += '<div class="empty-state">No tenías hábitos asignados este día.</div>';
+  } else {
+    myHabits.forEach(h => {
+      const answer = rec[h.id];
+      const mark = answer === true ? '✓' : answer === false ? '✗' : '–';
+      const cls = answer === true ? 'cell-ok' : answer === false ? 'cell-bad' : 'cell-no';
+      html += `<div class="detail-habit-row"><span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${cls}">${mark}</span></div>`;
+    });
+  }
+
+  const lines = [];
+  if (player.weightLog[date] !== undefined) lines.push(`⚖️ Peso: ${player.weightLog[date]}kg`);
+  const histEntry = player.fasting.history.find(h => h.date === date);
+  if (histEntry) lines.push(`✅ Ayuno completado: ${histEntry.hours}h`);
+  const wellness = player.wellness[date];
+  if (wellness && wellness.sleep) {
+    const opt = SLEEP_OPTIONS.find(o => o.value === wellness.sleep);
+    lines.push(`${opt ? opt.emoji : '😴'} Sueño: ${opt ? opt.label : wellness.sleep}`);
+  }
+  if (wellness && wellness.energy) {
+    const opt = ENERGY_OPTIONS.find(o => o.value === wellness.energy);
+    lines.push(`${opt ? opt.emoji : '⚡'} Energía: ${opt ? opt.label : wellness.energy}`);
+  }
+  if (lines.length > 0) {
+    html += `<div class="hint-text" style="margin-top:10px">${lines.join('<br>')}</div>`;
+  }
+
+  html += '</div>';
+  panel.innerHTML = html;
+  document.getElementById('closeWeekDayBtn').addEventListener('click', () => {
+    selectedWeekDate = null;
+    renderWeekStrip(player);
+  });
 }
 
 /* ---------- COACH ---------- */

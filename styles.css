@@ -513,7 +513,9 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
   padding: 10px 4px;
   font-size: 0.75rem;
   color: var(--ink-soft);
+  cursor: pointer;
 }
+.week-day.selected { background: var(--blue-light); border-color: var(--blue); }
 .week-day .pct {
   display: inline-flex;
   align-items: center;
