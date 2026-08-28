@@ -163,6 +163,7 @@ async function loadAllData() {
     { data: fastingHistory },
     { data: settingsRows },
     { data: checkins },
+    { data: habitSettings },
   ] = await Promise.all([
     supabase.from('habits').select('*').order('sort_order'),
     supabase.from('players').select('*').order('name'),
@@ -173,9 +174,10 @@ async function loadAllData() {
     supabase.from('fasting_history').select('*'),
     supabase.from('settings').select('*'),
     supabase.from('daily_checkins').select('*'),
+    supabase.from('player_habit_settings').select('*'),
   ]);
 
-  state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label, timeOfDay: h.time_of_day, notifyEnabled: h.notify_enabled }));
+  state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label }));
   state.coachAuthId = settingsRows && settingsRows[0] ? settingsRows[0].coach_auth_id : null;
 
   const assignmentsByPlayer = {};
@@ -205,6 +207,12 @@ async function loadAllData() {
     checkinsByPlayer[c.player_id][c.date] = { sleep: c.sleep, energy: c.energy };
   });
 
+  const habitSettingsByPlayer = {};
+  (habitSettings || []).forEach(s => {
+    if (!habitSettingsByPlayer[s.player_id]) habitSettingsByPlayer[s.player_id] = {};
+    habitSettingsByPlayer[s.player_id][s.habit_id] = { timeOfDay: s.time_of_day, notifyEnabled: s.notify_enabled };
+  });
+
   state.players = (players || []).map(p => ({
     id: p.id,
     authId: p.auth_id,
@@ -212,6 +220,7 @@ async function loadAllData() {
     email: p.email,
     avatarUrl: p.avatar_url || null,
     habitsByDay: assignmentsByPlayer[p.id] || emptyWeekMap(),
+    habitSettings: habitSettingsByPlayer[p.id] || {},
     weightLog: weightsByPlayer[p.id] || {},
     wellness: checkinsByPlayer[p.id] || {},
     fasting: {
@@ -238,7 +247,12 @@ function habitsForOnDate(player, dateStr) {
   if (!player) return [];
   const dayKey = weekdayKeyForDateStr(dateStr);
   const ids = player.habitsByDay[dayKey] || [];
-  return ids.map(id => state.habits.find(h => h.id === id)).filter(Boolean);
+  return ids.map(id => {
+    const h = state.habits.find(hh => hh.id === id);
+    if (!h) return null;
+    const settings = player.habitSettings[id] || {};
+    return { ...h, timeOfDay: settings.timeOfDay || null, notifyEnabled: !!settings.notifyEnabled };
+  }).filter(Boolean);
 }
 
 function computeWeeklySummary(player) {
@@ -973,7 +987,7 @@ function renderCoach() {
     wrap.innerHTML = '<div class="empty-state">Todavía no hay jugadores añadidos.</div>';
     document.getElementById('teamPct').textContent = '—';
   } else {
-    let html = '<table class="dash"><thead><tr><th style="text-align:left">Jugador</th><th>Asig.</th><th>Hoy</th><th>%</th><th>Peso</th></tr></thead><tbody>';
+    let html = '<table class="dash"><thead><tr><th style="text-align:left">Jugador</th><th>Peso</th><th>Energía</th><th>Ayuno</th><th>%</th></tr></thead><tbody>';
 
     state.players.forEach(p => {
       const myHabits = habitsForOnDate(p, date);
@@ -986,7 +1000,9 @@ function renderCoach() {
         teamPossible += total;
       }
       const weight = p.weightLog[date];
-      html += `<tr class="row-clickable" data-player="${p.id}"><td class="name-cell">${avatarThumbHtml(p)}${p.name}</td><td>${total}</td><td class="total-cell">${done}/${total}</td><td>${pct === null ? '–' : pct + '%'}</td><td>${weight !== undefined ? weight + 'kg' : '–'}</td></tr>`;
+      const energy = p.wellness[date] && p.wellness[date].energy;
+      const fasted = p.fasting.history.some(h => h.date === date);
+      html += `<tr class="row-clickable" data-player="${p.id}"><td class="name-cell">${avatarThumbHtml(p)}${p.name}</td><td>${weight !== undefined ? weight + 'kg' : '–'}</td><td>${energy ? energy + '/5' : '–'}</td><td class="${fasted ? 'cell-ok' : 'cell-no'}">${fasted ? '✓' : '–'}</td><td>${pct === null ? '–' : pct + '%'}</td></tr>`;
     });
 
     html += '</tbody></table>';
@@ -1227,6 +1243,62 @@ function renderAdminPlayers() {
     }
     card.appendChild(chips);
 
+    const assignedHabits = assignedIds.map(id => state.habits.find(h => h.id === id)).filter(Boolean);
+    if (assignedHabits.length > 0) {
+      const settingsTitle = document.createElement('div');
+      settingsTitle.className = 'hint-text';
+      settingsTitle.style.margin = '10px 0 4px';
+      settingsTitle.textContent = 'Hora y aviso por hábito (para este jugador)';
+      card.appendChild(settingsTitle);
+
+      const settingsWrap = document.createElement('div');
+      settingsWrap.className = 'admin-list';
+      assignedHabits.forEach(h => {
+        const settings = p.habitSettings[h.id] || {};
+        const row = document.createElement('div');
+        row.className = 'admin-row';
+
+        const head = document.createElement('div');
+        head.className = 'admin-row-head';
+        head.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+        row.appendChild(head);
+
+        const controls = document.createElement('div');
+        controls.className = 'admin-row-controls';
+
+        const timeInput = document.createElement('input');
+        timeInput.type = 'time';
+        timeInput.value = settings.timeOfDay ? settings.timeOfDay.slice(0, 5) : '';
+        timeInput.style.flex = '1';
+        timeInput.onchange = async () => {
+          const time_of_day = timeInput.value || null;
+          const updates = { player_id: p.id, habit_id: h.id, time_of_day };
+          if (!time_of_day && settings.notifyEnabled) updates.notify_enabled = false;
+          await supabase.from('player_habit_settings').upsert(updates, { onConflict: 'player_id,habit_id' });
+          await refreshAndRender();
+        };
+        controls.appendChild(timeInput);
+
+        const notifyBtn = document.createElement('button');
+        notifyBtn.className = settings.notifyEnabled ? 'primary' : 'ghost';
+        notifyBtn.textContent = settings.notifyEnabled ? '🔔' : '🔕';
+        notifyBtn.title = settings.timeOfDay ? (settings.notifyEnabled ? 'Aviso activado' : 'Activar aviso') : 'Pon una hora primero';
+        notifyBtn.disabled = !settings.timeOfDay;
+        notifyBtn.onclick = async () => {
+          await supabase.from('player_habit_settings').upsert(
+            { player_id: p.id, habit_id: h.id, notify_enabled: !settings.notifyEnabled },
+            { onConflict: 'player_id,habit_id' }
+          );
+          await refreshAndRender();
+        };
+        controls.appendChild(notifyBtn);
+
+        row.appendChild(controls);
+        settingsWrap.appendChild(row);
+      });
+      card.appendChild(settingsWrap);
+    }
+
     const copyRow = document.createElement('div');
     copyRow.className = 'copy-row';
     const copyBtn = document.createElement('button');
@@ -1280,10 +1352,7 @@ function renderAdminHabits() {
   state.habits.forEach(h => {
     const row = document.createElement('div');
     row.className = 'admin-row';
-
-    const head = document.createElement('div');
-    head.className = 'admin-row-head';
-    head.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+    row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
 
     const delBtn = document.createElement('button');
     delBtn.className = 'danger';
@@ -1292,37 +1361,7 @@ function renderAdminHabits() {
       await supabase.from('habits').delete().eq('id', h.id);
       await refreshAndRender();
     };
-    head.appendChild(delBtn);
-    row.appendChild(head);
-
-    const controls = document.createElement('div');
-    controls.className = 'admin-row-controls';
-
-    const timeInput = document.createElement('input');
-    timeInput.type = 'time';
-    timeInput.value = h.timeOfDay ? h.timeOfDay.slice(0, 5) : '';
-    timeInput.style.flex = '1';
-    timeInput.onchange = async () => {
-      const time_of_day = timeInput.value || null;
-      const updates = { time_of_day };
-      if (!time_of_day && h.notifyEnabled) updates.notify_enabled = false;
-      await supabase.from('habits').update(updates).eq('id', h.id);
-      await refreshAndRender();
-    };
-    controls.appendChild(timeInput);
-
-    const notifyBtn = document.createElement('button');
-    notifyBtn.className = h.notifyEnabled ? 'primary' : 'ghost';
-    notifyBtn.textContent = h.notifyEnabled ? '🔔' : '🔕';
-    notifyBtn.title = h.timeOfDay ? (h.notifyEnabled ? 'Aviso activado' : 'Activar aviso') : 'Pon una hora primero';
-    notifyBtn.disabled = !h.timeOfDay;
-    notifyBtn.onclick = async () => {
-      await supabase.from('habits').update({ notify_enabled: !h.notifyEnabled }).eq('id', h.id);
-      await refreshAndRender();
-    };
-    controls.appendChild(notifyBtn);
-
-    row.appendChild(controls);
+    row.appendChild(delBtn);
     box.appendChild(row);
   });
 }
@@ -1330,14 +1369,12 @@ function renderAdminHabits() {
 async function addAdminHabit() {
   const emojiInput = document.getElementById('adminNewHabitEmoji');
   const labelInput = document.getElementById('adminNewHabitLabel');
-  const timeInput = document.getElementById('adminNewHabitTime');
   const emoji = emojiInput.value.trim() || '✅';
   const label = labelInput.value.trim();
   if (!label) return;
-  await supabase.from('habits').insert({ emoji, label, sort_order: state.habits.length + 1, time_of_day: timeInput.value || null });
+  await supabase.from('habits').insert({ emoji, label, sort_order: state.habits.length + 1 });
   emojiInput.value = '';
   labelInput.value = '';
-  timeInput.value = '';
   await refreshAndRender();
 }
 

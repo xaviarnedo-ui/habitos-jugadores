@@ -26,52 +26,55 @@ Deno.serve(async (_req) => {
   const todayStr = `${y}-${m}-${d}`;
   const weekday = WEEKDAY_ORDER[madridNow.getDay()];
 
-  const { data: habits } = await supabase
-    .from('habits')
-    .select('id, emoji, label, time_of_day')
+  // La hora y el aviso son por jugador+hábito (no globales), así que se
+  // consulta player_habit_settings en vez de la tabla habits.
+  const { data: dueSettings } = await supabase
+    .from('player_habit_settings')
+    .select('player_id, habit_id, time_of_day, habits(emoji, label)')
     .eq('notify_enabled', true);
 
-  const dueHabits = (habits || []).filter(
-    h => h.time_of_day && h.time_of_day.slice(0, 5) === `${hh}:${roundedMin}`
+  const due = (dueSettings || []).filter(
+    s => s.time_of_day && s.time_of_day.slice(0, 5) === `${hh}:${roundedMin}`
   );
 
-  if (dueHabits.length === 0) {
+  if (due.length === 0) {
     return new Response(JSON.stringify({ sent: 0 }), { headers: { 'Content-Type': 'application/json' } });
   }
 
   let sent = 0;
 
-  for (const habit of dueHabits) {
-    const { data: assignments } = await supabase
+  for (const setting of due) {
+    // ¿Sigue asignado ese hábito a ese jugador hoy?
+    const { data: assignment } = await supabase
       .from('assignments')
       .select('player_id')
-      .eq('habit_id', habit.id)
-      .eq('weekday', weekday);
+      .eq('player_id', setting.player_id)
+      .eq('habit_id', setting.habit_id)
+      .eq('weekday', weekday)
+      .maybeSingle();
+    if (!assignment) continue;
 
-    const playerIds = (assignments || []).map(a => a.player_id);
-    if (playerIds.length === 0) continue;
-
-    const { data: doneChecks } = await supabase
+    // ¿Ya lo ha marcado hoy (hecho o no hecho)?
+    const { data: existingCheck } = await supabase
       .from('checks')
-      .select('player_id')
-      .eq('habit_id', habit.id)
+      .select('done')
+      .eq('player_id', setting.player_id)
+      .eq('habit_id', setting.habit_id)
       .eq('date', todayStr)
-      .in('player_id', playerIds);
-
-    const doneSet = new Set((doneChecks || []).map(c => c.player_id));
-    const pendingIds = playerIds.filter(id => !doneSet.has(id));
-    if (pendingIds.length === 0) continue;
+      .maybeSingle();
+    if (existingCheck && existingCheck.done === true) continue;
 
     const { data: subs } = await supabase
       .from('push_subscriptions')
       .select('*')
-      .in('player_id', pendingIds);
+      .eq('player_id', setting.player_id);
 
+    const habit = setting.habits;
     for (const sub of subs || []) {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title: 'Hábitos', body: `${habit.emoji} Toca: ${habit.label}` })
+          JSON.stringify({ title: 'Hábitos', body: `${habit?.emoji || '✅'} Toca: ${habit?.label || 'tu hábito'}` })
         );
         sent++;
       } catch (err) {
@@ -88,15 +91,12 @@ Deno.serve(async (_req) => {
 /*
 CÓMO DESPLEGAR (todo desde el dashboard de Supabase, sin instalar nada):
 
-1. Supabase Dashboard -> Edge Functions -> "Deploy a new function" -> nómbrala
-   "send-habit-reminders" y pega el código de arriba (sin este comentario final).
+1. Supabase Dashboard -> Edge Functions -> send-habit-reminders -> pega este código
+   (sin este comentario final) sustituyendo el que ya había.
 
-2. Edge Functions -> send-habit-reminders -> Secrets (o Project Settings -> Edge Functions -> Secrets),
-   añade estos 4 secretos:
-     SUPABASE_URL              -> https://cqjuqlrjidzulefeupqy.supabase.co
-     SUPABASE_SERVICE_ROLE_KEY -> (Project Settings -> API -> service_role key)
-     VAPID_PUBLIC_KEY          -> (te la paso en el chat, es la misma que ya está en app.js)
-     VAPID_PRIVATE_KEY         -> (te la paso en el chat aparte; NUNCA la pongas en un archivo de este repo, es público)
+2. Los secrets (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY) ya deberían estar puestos de
+   cuando la desplegaste la primera vez. SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
+   los rellena Supabase solo, no hace falta tocarlos.
 
-3. Ejecuta supabase-schema-cron.sql en el SQL Editor para que se llame sola cada 5 minutos.
+3. El cron que la llama cada 5 minutos (supabase-schema-cron.sql) no cambia.
 */
