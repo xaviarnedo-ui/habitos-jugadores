@@ -120,11 +120,7 @@ let state = {
 let selectedDetailPlayer = null; // player id
 let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
-let selectedAdminPlayerId = null; // player id, Jugadores tab (wide layout)
-
-function isWideLayout() {
-  return window.matchMedia('(min-width: 820px)').matches;
-}
+let selectedAdminPlayerId = null; // player id, Jugadores tab (acordeón)
 let playerEmailEditError = '';
 let fastingIntervalId = null;
 let currentAuthMode = 'signin';
@@ -1297,7 +1293,7 @@ function buildPlayerAdminCard(p) {
         const timeInput = document.createElement('input');
         timeInput.type = 'time';
         timeInput.value = settings.timeOfDay ? settings.timeOfDay.slice(0, 5) : '';
-        timeInput.style.flex = '1';
+        timeInput.style.flex = '0 0 110px';
         timeInput.onchange = async () => {
           const time_of_day = timeInput.value || null;
           const updates = { player_id: p.id, habit_id: h.id, time_of_day };
@@ -1330,59 +1326,38 @@ function buildPlayerAdminCard(p) {
     return card;
 }
 
-function renderAdminPlayersStacked() {
+function renderAdminPlayers() {
   const box = document.getElementById('adminPlayerList');
-  const detailBox = document.getElementById('playerDetailAdminPanel');
-  if (detailBox) detailBox.innerHTML = '';
   box.innerHTML = '';
   if (state.players.length === 0) {
     box.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Sin jugadores todavía.</div>';
     return;
-  }
-  state.players.forEach(p => box.appendChild(buildPlayerAdminCard(p)));
-}
-
-function renderAdminPlayersMasterDetail() {
-  const box = document.getElementById('adminPlayerList');
-  const detailBox = document.getElementById('playerDetailAdminPanel');
-  box.innerHTML = '';
-  detailBox.innerHTML = '';
-  if (state.players.length === 0) {
-    box.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Sin jugadores todavía.</div>';
-    return;
-  }
-  if (!selectedAdminPlayerId || !getPlayerById(selectedAdminPlayerId)) {
-    selectedAdminPlayerId = state.players[0].id;
   }
   state.players.forEach(p => {
     const assignedAnyDay = new Set();
     WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
+    const isOpen = selectedAdminPlayerId === p.id;
+
     const row = document.createElement('div');
-    row.className = 'player-list-row' + (p.id === selectedAdminPlayerId ? ' active' : '');
+    row.className = 'player-list-row' + (isOpen ? ' active' : '');
     row.innerHTML = `
       ${avatarThumbHtml(p)}
       <div class="player-list-row-info">
         <div class="player-list-row-name">${p.name}</div>
-        <div class="player-list-row-meta">${assignedAnyDay.size}/${state.habits.length} hábitos</div>
+        <div class="player-list-row-meta">${assignedAnyDay.size}/${state.habits.length} hábitos${p.authId ? '' : ' · sin registrar'}</div>
       </div>
-      ${p.authId ? '' : '<span class="player-list-row-pending" title="Aún no se ha registrado"></span>'}
+      <span class="player-list-row-chevron">${isOpen ? '▴' : '▾'}</span>
     `;
     row.onclick = () => {
-      selectedAdminPlayerId = p.id;
+      selectedAdminPlayerId = isOpen ? null : p.id;
       renderCoach();
     };
     box.appendChild(row);
-  });
-  const selected = getPlayerById(selectedAdminPlayerId);
-  if (selected) detailBox.appendChild(buildPlayerAdminCard(selected));
-}
 
-function renderAdminPlayers() {
-  if (isWideLayout()) {
-    renderAdminPlayersMasterDetail();
-  } else {
-    renderAdminPlayersStacked();
-  }
+    if (isOpen) {
+      box.appendChild(buildPlayerAdminCard(p));
+    }
+  });
 }
 
 async function addAdminPlayer() {
@@ -1548,14 +1523,6 @@ if (localStorage.getItem('coachSidebarCollapsed') === '1') {
 document.getElementById('sidebarToggleBtn').addEventListener('click', () => {
   const collapsed = coachNavEl.classList.toggle('collapsed');
   localStorage.setItem('coachSidebarCollapsed', collapsed ? '1' : '0');
-});
-
-let resizeRenderTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeRenderTimer);
-  resizeRenderTimer = setTimeout(() => {
-    if (state.session && state.session.type === 'coach') render();
-  }, 150);
 });
 
 function setupRealtimeSubscriptions() {
