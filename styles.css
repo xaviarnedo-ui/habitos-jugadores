@@ -834,10 +834,10 @@ table.dash tr:last-child td { border-bottom: none; }
   color: #fff;
 }
 
-/* ---------- Desktop layout: sidebar instead of bottom nav ---------- */
-/* Only for real pointer devices — touch tablets keep the mobile app shell. */
+/* ---------- Wide layout: sidebar instead of bottom nav ---------- */
+/* By screen width alone, so tablets in touch mode (iPad) get it too. */
 
-@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
+@media (min-width: 820px) {
   .portal { align-items: stretch; }
   .shell {
     max-width: 1040px;
