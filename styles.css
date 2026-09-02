@@ -840,7 +840,7 @@ table.dash tr:last-child td { border-bottom: none; }
 @media (min-width: 820px) {
   .portal { align-items: stretch; }
   .shell {
-    max-width: 1040px;
+    max-width: 1280px;
     margin: 24px auto;
     min-height: calc(100dvh - 48px);
     flex-direction: row;
@@ -882,7 +882,7 @@ table.dash tr:last-child td { border-bottom: none; }
 
   .content {
     padding: calc(90px + env(safe-area-inset-top, 0px)) 28px 40px;
-    max-width: 640px;
+    max-width: 920px;
     margin: 0 auto;
   }
 }

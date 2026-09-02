@@ -1373,7 +1373,10 @@ function renderAdminHabits() {
   state.habits.forEach(h => {
     const row = document.createElement('div');
     row.className = 'admin-row';
-    row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+
+    const head = document.createElement('div');
+    head.className = 'admin-row-head';
+    head.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
 
     const delBtn = document.createElement('button');
     delBtn.className = 'danger';
@@ -1382,7 +1385,8 @@ function renderAdminHabits() {
       await supabase.from('habits').delete().eq('id', h.id);
       await refreshAndRender();
     };
-    row.appendChild(delBtn);
+    head.appendChild(delBtn);
+    row.appendChild(head);
     box.appendChild(row);
   });
 }
