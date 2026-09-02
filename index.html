@@ -145,16 +145,21 @@
         </div>
 
         <div class="tab-content" data-tab="jugadores" id="tab-coach-jugadores">
-          <div class="section-title">Jugadores y sus hábitos asignados</div>
-          <p class="hint-text">Añade al jugador con su nombre y email. Cuando se registre en la app con ese mismo email, quedará vinculado automáticamente.</p>
-          <div class="admin-list" id="adminPlayerList"></div>
-          <div class="card">
-            <div class="field-row">
-              <input type="text" id="adminNewPlayerInput" placeholder="Nombre del jugador">
-              <input type="email" id="adminNewPlayerEmailInput" placeholder="Email del jugador">
-              <button class="primary" id="adminAddPlayerBtn">Añadir jugador</button>
+          <div class="section-title">Jugadores</div>
+          <div class="players-layout">
+            <div class="players-list-col">
+              <div class="admin-list" id="adminPlayerList"></div>
+              <div class="card">
+                <p class="hint-text" style="margin-top:0">Añade con su nombre y email; se vincula solo cuando se registre con ese email.</p>
+                <div class="field-row">
+                  <input type="text" id="adminNewPlayerInput" placeholder="Nombre del jugador">
+                  <input type="email" id="adminNewPlayerEmailInput" placeholder="Email del jugador">
+                </div>
+                <button class="primary" id="adminAddPlayerBtn" style="width:100%; margin-top:8px;">Añadir jugador</button>
+                <p class="hint-text" id="adminAddPlayerError"></p>
+              </div>
             </div>
-            <p class="hint-text" id="adminAddPlayerError"></p>
+            <div class="player-detail-col" id="playerDetailAdminPanel"></div>
           </div>
         </div>
 
@@ -183,6 +188,7 @@
       <button class="nav-item" data-tab="habitos"><span class="nav-icon">✅</span><span class="nav-label">Hábitos</span></button>
       <button class="nav-item" data-tab="jugadores"><span class="nav-icon">👥</span><span class="nav-label">Jugadores</span></button>
       <button class="nav-item" data-tab="ajustes"><span class="nav-icon">⚙️</span><span class="nav-label">Ajustes</span></button>
+      <button class="sidebar-toggle" id="sidebarToggleBtn" title="Reducir menú">‹</button>
     </nav>
 
   </div>

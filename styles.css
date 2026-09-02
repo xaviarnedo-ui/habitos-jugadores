@@ -212,6 +212,7 @@ body {
 .nav-icon { font-size: 1.2rem; line-height: 1; }
 .nav-label { font-size: 0.65rem; font-weight: 700; }
 .nav-item.active { color: var(--navy); }
+.sidebar-toggle { display: none; }
 
 /* ---------- Login ---------- */
 
@@ -586,6 +587,57 @@ table.dash tr:last-child td { border-bottom: none; }
 .admin-row .flex1 { flex: 1; }
 .admin-row-controls { display: flex; align-items: center; gap: 8px; }
 
+/* ---------- Cuadrícula semanal de asignación (jugador × hábito) ---------- */
+
+.assign-grid-wrap { overflow-x: auto; }
+.assign-grid {
+  display: grid;
+  grid-template-columns: 140px repeat(7, 32px);
+  gap: 6px;
+  align-items: center;
+  width: max-content;
+}
+.assign-grid-daylabel {
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+.assign-grid-habit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  padding-right: 8px;
+  white-space: nowrap;
+}
+.assign-cell {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: transparent;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.assign-cell:hover { border-color: var(--blue); }
+.assign-cell.checked { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+@media (min-width: 820px) {
+  .assign-grid { grid-template-columns: minmax(160px, 1fr) repeat(7, 38px); width: auto; }
+  .assign-cell { width: 34px; height: 34px; }
+}
+
 .settings-row {
   display: flex;
   align-items: center;
@@ -884,5 +936,57 @@ table.dash tr:last-child td { border-bottom: none; }
     padding: calc(90px + env(safe-area-inset-top, 0px)) 28px 40px;
     max-width: 920px;
     margin: 0 auto;
+  }
+
+  /* Collapsible sidebar */
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-size: 1rem;
+    align-self: flex-end;
+  }
+  .sidebar-toggle:hover { border-color: var(--blue); color: var(--blue); }
+  .bottomnav.collapsed { width: 68px; padding-left: 10px; padding-right: 10px; }
+  .bottomnav.collapsed .nav-label { display: none; }
+  .bottomnav.collapsed .nav-item { justify-content: center; padding: 10px 4px; }
+  .bottomnav.collapsed .sidebar-toggle { align-self: center; transform: scaleX(-1); }
+
+  /* Jugadores: lista + detalle */
+  .players-layout { display: flex; align-items: flex-start; gap: 20px; }
+  .players-list-col { flex: 0 0 300px; display: flex; flex-direction: column; gap: 14px; }
+  .player-detail-col { flex: 1; min-width: 0; }
+
+  .player-list-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .player-list-row:hover { background: var(--bg); }
+  .player-list-row.active { background: var(--blue-light); border-color: var(--blue); }
+  .player-list-row-info { flex: 1; min-width: 0; }
+  .player-list-row-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .player-list-row-meta { font-size: 0.75rem; color: var(--ink-soft); }
+  .player-list-row-pending {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
+    flex-shrink: 0;
   }
 }

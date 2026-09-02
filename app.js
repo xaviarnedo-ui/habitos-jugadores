@@ -120,8 +120,12 @@ let state = {
 let selectedDetailPlayer = null; // player id
 let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
+let selectedAdminPlayerId = null; // player id, Jugadores tab (wide layout)
+
+function isWideLayout() {
+  return window.matchMedia('(min-width: 820px)').matches;
+}
 let playerEmailEditError = '';
-const adminSelectedDay = {}; // playerId -> weekday key, UI-only state
 let fastingIntervalId = null;
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
@@ -1094,26 +1098,59 @@ function renderPlayerDetail(date) {
   });
 }
 
-function renderAdminPlayers() {
-  const box = document.getElementById('adminPlayerList');
-  box.innerHTML = '';
-  if (state.players.length === 0) {
-    box.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Sin jugadores todavía.</div>';
-    return;
+function buildAssignGrid(p) {
+  const wrap = document.createElement('div');
+  if (state.habits.length === 0) {
+    wrap.className = 'hint-text';
+    wrap.textContent = 'Añade hábitos a la batería primero.';
+    return wrap;
   }
-  state.players.forEach(p => {
-    if (!adminSelectedDay[p.id]) {
-      adminSelectedDay[p.id] = weekdayKeyForDateStr(todayKey());
-    }
-    const activeDay = adminSelectedDay[p.id];
-    const assignedIds = p.habitsByDay[activeDay] || [];
+  wrap.className = 'assign-grid-wrap';
+  const grid = document.createElement('div');
+  grid.className = 'assign-grid';
+  grid.appendChild(document.createElement('div')); // corner
+  WEEKDAYS.forEach(d => {
+    const label = document.createElement('div');
+    label.className = 'assign-grid-daylabel';
+    label.textContent = d.short;
+    label.title = d.label;
+    grid.appendChild(label);
+  });
+  state.habits.forEach(h => {
+    const nameCell = document.createElement('div');
+    nameCell.className = 'assign-grid-habit';
+    nameCell.innerHTML = `<span>${h.emoji}</span><span>${h.label}</span>`;
+    grid.appendChild(nameCell);
+    WEEKDAYS.forEach(d => {
+      const assigned = (p.habitsByDay[d.key] || []).includes(h.id);
+      const cell = document.createElement('button');
+      cell.className = 'assign-cell' + (assigned ? ' checked' : '');
+      cell.textContent = assigned ? '✓' : '';
+      cell.title = `${h.label} · ${d.label}`;
+      cell.onclick = async () => {
+        if (assigned) {
+          await supabase.from('assignments').delete().match({ player_id: p.id, weekday: d.key, habit_id: h.id });
+        } else {
+          await supabase.from('assignments').insert({ player_id: p.id, weekday: d.key, habit_id: h.id });
+        }
+        await refreshAndRender();
+      };
+      grid.appendChild(cell);
+    });
+  });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function buildPlayerAdminCard(p) {
+    const assignedAnyDay = new Set();
+    WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
 
     const card = document.createElement('div');
     card.className = 'player-admin-card';
 
     const head = document.createElement('div');
     head.className = 'player-admin-head';
-    const dayLabel = WEEKDAYS.find(d => d.key === activeDay).label;
 
     const infoSpan = document.createElement('span');
     infoSpan.className = 'flex1';
@@ -1199,7 +1236,7 @@ function renderAdminPlayers() {
     if (editingPlayerEmail !== p.id) {
       const countSpan = document.createElement('span');
       countSpan.className = 'assigned-count';
-      countSpan.textContent = `${assignedIds.length}/${state.habits.length} · ${dayLabel}`;
+      countSpan.textContent = `${assignedAnyDay.size}/${state.habits.length} hábitos`;
       head.appendChild(countSpan);
 
       if (!p.authId) {
@@ -1220,55 +1257,25 @@ function renderAdminPlayers() {
       delBtn.onclick = async () => {
         await supabase.from('players').delete().eq('id', p.id);
         if (selectedDetailPlayer === p.id) selectedDetailPlayer = null;
+        if (selectedAdminPlayerId === p.id) selectedAdminPlayerId = null;
         await refreshAndRender();
       };
       head.appendChild(delBtn);
     }
     card.appendChild(head);
 
-    const dayTabs = document.createElement('div');
-    dayTabs.className = 'day-tabs';
-    WEEKDAYS.forEach(d => {
-      const tab = document.createElement('div');
-      tab.className = 'day-tab' + (d.key === activeDay ? ' active' : '');
-      tab.textContent = d.short;
-      tab.title = d.label;
-      tab.onclick = () => {
-        adminSelectedDay[p.id] = d.key;
-        renderCoach();
-      };
-      dayTabs.appendChild(tab);
-    });
-    card.appendChild(dayTabs);
+    const gridTitle = document.createElement('div');
+    gridTitle.className = 'hint-text';
+    gridTitle.style.margin = '10px 0 6px';
+    gridTitle.textContent = 'Hábitos asignados esta semana';
+    card.appendChild(gridTitle);
+    card.appendChild(buildAssignGrid(p));
 
-    const chips = document.createElement('div');
-    chips.className = 'assign-chips';
-    if (state.habits.length === 0) {
-      chips.innerHTML = '<span class="assign-chips-empty">Añade hábitos a la batería primero.</span>';
-    } else {
-      state.habits.forEach(h => {
-        const assigned = assignedIds.includes(h.id);
-        const chip = document.createElement('div');
-        chip.className = 'assign-chip' + (assigned ? ' assigned' : '');
-        chip.innerHTML = `<span>${h.emoji}</span><span>${h.label}</span>`;
-        chip.onclick = async () => {
-          if (assigned) {
-            await supabase.from('assignments').delete().match({ player_id: p.id, weekday: activeDay, habit_id: h.id });
-          } else {
-            await supabase.from('assignments').insert({ player_id: p.id, weekday: activeDay, habit_id: h.id });
-          }
-          await refreshAndRender();
-        };
-        chips.appendChild(chip);
-      });
-    }
-    card.appendChild(chips);
-
-    const assignedHabits = assignedIds.map(id => state.habits.find(h => h.id === id)).filter(Boolean);
+    const assignedHabits = state.habits.filter(h => assignedAnyDay.has(h.id));
     if (assignedHabits.length > 0) {
       const settingsTitle = document.createElement('div');
       settingsTitle.className = 'hint-text';
-      settingsTitle.style.margin = '10px 0 4px';
+      settingsTitle.style.margin = '16px 0 6px';
       settingsTitle.textContent = 'Hora y aviso por hábito (para este jugador)';
       card.appendChild(settingsTitle);
 
@@ -1320,26 +1327,62 @@ function renderAdminPlayers() {
       card.appendChild(settingsWrap);
     }
 
-    const copyRow = document.createElement('div');
-    copyRow.className = 'copy-row';
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'ghost';
-    copyBtn.textContent = `Copiar ${dayLabel} a toda la semana`;
-    copyBtn.onclick = async () => {
-      const sourceIds = p.habitsByDay[activeDay].slice();
-      await supabase.from('assignments').delete().eq('player_id', p.id);
-      if (sourceIds.length > 0) {
-        const rows = [];
-        WEEKDAYS.forEach(d => { sourceIds.forEach(habitId => rows.push({ player_id: p.id, weekday: d.key, habit_id: habitId })); });
-        await supabase.from('assignments').insert(rows);
-      }
-      await refreshAndRender();
-    };
-    copyRow.appendChild(copyBtn);
-    card.appendChild(copyRow);
+    return card;
+}
 
-    box.appendChild(card);
+function renderAdminPlayersStacked() {
+  const box = document.getElementById('adminPlayerList');
+  const detailBox = document.getElementById('playerDetailAdminPanel');
+  if (detailBox) detailBox.innerHTML = '';
+  box.innerHTML = '';
+  if (state.players.length === 0) {
+    box.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Sin jugadores todavía.</div>';
+    return;
+  }
+  state.players.forEach(p => box.appendChild(buildPlayerAdminCard(p)));
+}
+
+function renderAdminPlayersMasterDetail() {
+  const box = document.getElementById('adminPlayerList');
+  const detailBox = document.getElementById('playerDetailAdminPanel');
+  box.innerHTML = '';
+  detailBox.innerHTML = '';
+  if (state.players.length === 0) {
+    box.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Sin jugadores todavía.</div>';
+    return;
+  }
+  if (!selectedAdminPlayerId || !getPlayerById(selectedAdminPlayerId)) {
+    selectedAdminPlayerId = state.players[0].id;
+  }
+  state.players.forEach(p => {
+    const assignedAnyDay = new Set();
+    WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
+    const row = document.createElement('div');
+    row.className = 'player-list-row' + (p.id === selectedAdminPlayerId ? ' active' : '');
+    row.innerHTML = `
+      ${avatarThumbHtml(p)}
+      <div class="player-list-row-info">
+        <div class="player-list-row-name">${p.name}</div>
+        <div class="player-list-row-meta">${assignedAnyDay.size}/${state.habits.length} hábitos</div>
+      </div>
+      ${p.authId ? '' : '<span class="player-list-row-pending" title="Aún no se ha registrado"></span>'}
+    `;
+    row.onclick = () => {
+      selectedAdminPlayerId = p.id;
+      renderCoach();
+    };
+    box.appendChild(row);
   });
+  const selected = getPlayerById(selectedAdminPlayerId);
+  if (selected) detailBox.appendChild(buildPlayerAdminCard(selected));
+}
+
+function renderAdminPlayers() {
+  if (isWideLayout()) {
+    renderAdminPlayersMasterDetail();
+  } else {
+    renderAdminPlayersStacked();
+  }
 }
 
 async function addAdminPlayer() {
@@ -1496,6 +1539,23 @@ document.getElementById('bottomnavCoach').addEventListener('click', e => {
   currentCoachTab = btn.dataset.tab;
   document.getElementById('content').scrollTop = 0;
   render();
+});
+
+const coachNavEl = document.getElementById('bottomnavCoach');
+if (localStorage.getItem('coachSidebarCollapsed') === '1') {
+  coachNavEl.classList.add('collapsed');
+}
+document.getElementById('sidebarToggleBtn').addEventListener('click', () => {
+  const collapsed = coachNavEl.classList.toggle('collapsed');
+  localStorage.setItem('coachSidebarCollapsed', collapsed ? '1' : '0');
+});
+
+let resizeRenderTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeRenderTimer);
+  resizeRenderTimer = setTimeout(() => {
+    if (state.session && state.session.type === 'coach') render();
+  }, 150);
 });
 
 function setupRealtimeSubscriptions() {
