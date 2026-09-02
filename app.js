@@ -5,6 +5,14 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+let isPasswordRecovery = false;
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    isPasswordRecovery = true;
+    render();
+  }
+});
+
 const VAPID_PUBLIC_KEY = 'BIez-kUYmKbzOphKs5GPzQ44qguPuPk9faMa2vsGLZ8RYjfb235nBM_gSid-PDgNu36DPgMS1v78phRbaArY64A';
 
 function urlBase64ToUint8Array(base64String) {
@@ -307,6 +315,19 @@ function showScreen(id) {
 }
 
 function render() {
+  if (isPasswordRecovery) {
+    showScreen('screen-login');
+    document.getElementById('logoutBtn').style.display = 'none';
+    document.getElementById('bottomnavPlayer').style.display = 'none';
+    document.getElementById('bottomnavCoach').style.display = 'none';
+    document.getElementById('loginFormBox').style.display = 'none';
+    document.getElementById('bootstrapBox').style.display = 'none';
+    document.getElementById('recoveryBox').style.display = 'block';
+    document.getElementById('topbarTitle').textContent = 'HÁBITOS';
+    document.getElementById('topbarSubtitle').textContent = 'Nueva contraseña';
+    return;
+  }
+
   const logoutBtn = document.getElementById('logoutBtn');
   logoutBtn.style.display = state.session ? 'flex' : 'none';
   document.getElementById('bottomnavPlayer').style.display = 'none';
@@ -1422,6 +1443,40 @@ document.getElementById('adminNewHabitLabel').addEventListener('keydown', e => {
 
 document.getElementById('bootstrapYesBtn').addEventListener('click', confirmBootstrapCoach);
 document.getElementById('bootstrapNoBtn').addEventListener('click', cancelBootstrapCoach);
+
+document.getElementById('forgotPasswordLink').addEventListener('click', async () => {
+  const email = normalizeEmail(document.getElementById('authEmailInput').value);
+  const messageEl = document.getElementById('loginMessage');
+  if (!email) {
+    messageEl.textContent = 'Escribe tu email arriba y vuelve a pulsar "¿Has olvidado tu contraseña?".';
+    return;
+  }
+  messageEl.textContent = 'Enviando...';
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname,
+  });
+  messageEl.textContent = error
+    ? 'No se pudo enviar el email. Inténtalo de nuevo.'
+    : 'Te hemos enviado un email para restablecer la contraseña.';
+});
+
+document.getElementById('recoverySubmitBtn').addEventListener('click', async () => {
+  const pw = document.getElementById('recoveryPasswordInput').value;
+  const messageEl = document.getElementById('recoveryMessage');
+  if (pw.length < 6) {
+    messageEl.textContent = 'La contraseña debe tener al menos 6 caracteres.';
+    return;
+  }
+  const { error } = await supabase.auth.updateUser({ password: pw });
+  if (error) {
+    messageEl.textContent = 'No se pudo guardar. Inténtalo de nuevo.';
+    return;
+  }
+  isPasswordRecovery = false;
+  document.getElementById('recoveryPasswordInput').value = '';
+  messageEl.textContent = '';
+  await resolveSessionAndRender();
+});
 
 document.getElementById('bottomnavPlayer').addEventListener('click', e => {
   const btn = e.target.closest('.nav-item');

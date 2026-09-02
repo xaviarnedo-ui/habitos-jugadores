@@ -49,6 +49,16 @@
               <button class="primary" id="authSubmitBtn">Entrar</button>
             </div>
             <p class="hint-text" id="loginMessage"></p>
+            <p class="hint-text" id="forgotPasswordLink" style="cursor:pointer; text-decoration:underline; margin-top:-4px;">¿Has olvidado tu contraseña?</p>
+          </div>
+
+          <div id="recoveryBox" class="card" style="display:none">
+            <p class="field-label">Escribe tu contraseña nueva.</p>
+            <div class="field-row">
+              <input type="password" id="recoveryPasswordInput" placeholder="Contraseña nueva (mínimo 6 caracteres)" autocomplete="new-password">
+              <button class="primary" id="recoverySubmitBtn">Guardar</button>
+            </div>
+            <p class="hint-text" id="recoveryMessage"></p>
           </div>
 
           <div id="bootstrapBox" class="card" style="display:none">
