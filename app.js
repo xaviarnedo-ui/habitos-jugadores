@@ -537,33 +537,69 @@ function renderProfileCard(player) {
 }
 
 function nutritionTipsHtml(player) {
-  const filled = NUTRITION_CATEGORIES.filter(cat => player.nutritionTips[cat.key]);
-  if (filled.length === 0) {
-    return '<p class="hint-text" style="margin:0">Tu entrenador todavía no te ha dejado tips nutricionales.</p>';
-  }
-  return filled.map(cat => `
-    <div class="profile-habit-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
-      <span style="font-weight:700;">${cat.emoji} ${cat.label}</span>
-      <span style="color:var(--ink-soft); font-size:0.88rem;">${(player.nutritionTips[cat.key] || '').replace(/</g, '&lt;')}</span>
-    </div>
-  `).join('');
+  return NUTRITION_CATEGORIES.map(cat => {
+    const tip = player.nutritionTips[cat.key];
+    const textHtml = tip
+      ? `<span style="color:var(--ink-soft); font-size:0.88rem;">${tip.replace(/</g, '&lt;')}</span>`
+      : `<span style="color:var(--ink-soft); font-size:0.88rem; font-style:italic;">Sin tip todavía.</span>`;
+    return `
+      <div class="profile-habit-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
+        <span style="font-weight:700;">${cat.emoji} ${cat.label}</span>
+        ${textHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+function resizeImageToJpeg(file, maxSize = 640, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height) {
+        if (width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
+      } else if (height > maxSize) {
+        width = Math.round(width * (maxSize / height)); height = maxSize;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob); else reject(new Error('No se pudo procesar la imagen.'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Formato de imagen no compatible.')); };
+    img.src = url;
+  });
 }
 
 async function uploadAvatarForPlayer(player, file, errorEl) {
   if (errorEl) errorEl.textContent = 'Subiendo foto...';
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${player.id}/${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file);
+  let blob;
+  try {
+    blob = await resizeImageToJpeg(file);
+  } catch (e) {
+    if (errorEl) errorEl.textContent = 'No se pudo leer esa foto. Prueba a hacer una captura de pantalla de ella y sube esa imagen.';
+    return;
+  }
+
+  const path = `${player.id}/${Date.now()}.jpg`;
+  const { error: uploadError } = await supabase.storage.from('avatars')
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
   if (uploadError) {
-    if (errorEl) errorEl.textContent = 'No se pudo subir la foto. Inténtalo de nuevo.';
+    if (errorEl) errorEl.textContent = 'No se pudo subir la foto: ' + (uploadError.message || 'inténtalo de nuevo.');
     return;
   }
 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   const { error: dbError } = await supabase.from('players').update({ avatar_url: data.publicUrl }).eq('id', player.id);
   if (dbError) {
-    if (errorEl) errorEl.textContent = 'La foto se subió pero no se pudo guardar. Inténtalo de nuevo.';
+    if (errorEl) errorEl.textContent = 'La foto se subió pero no se pudo guardar: ' + (dbError.message || '');
     return;
   }
   await refreshAndRender();
