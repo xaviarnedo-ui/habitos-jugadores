@@ -127,7 +127,7 @@ let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
 let currentCoachTab = 'equipo'; // 'equipo' | 'habitos' | 'jugadores' | 'ajustes'
 
-const PLAYER_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', perfil: 'PERFIL' };
+const PLAYER_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', tips: 'TIPS', perfil: 'PERFIL' };
 const COACH_TAB_TITLES = { equipo: 'EQUIPO', habitos: 'HÁBITOS', jugadores: 'JUGADORES', ajustes: 'AJUSTES' };
 
 function showTab(role, tabName) {
@@ -534,7 +534,6 @@ function renderProfileCard(player) {
 
   document.getElementById('weightChartCard').innerHTML = weightChartHtml(player);
   document.getElementById('fastingChartCard').innerHTML = fastingChartHtml(player);
-  document.getElementById('nutritionTipsCard').innerHTML = nutritionTipsHtml(player);
 }
 
 function nutritionTipsHtml(player) {
@@ -572,6 +571,7 @@ async function uploadAvatarForPlayer(player, file, errorEl) {
 
 function renderPlayerToday(player) {
   renderProfileCard(player);
+  document.getElementById('nutritionTipsCard').innerHTML = nutritionTipsHtml(player);
   const today = todayKey();
   document.getElementById('todayDateLabel').textContent = formatDateLabel(today);
 
