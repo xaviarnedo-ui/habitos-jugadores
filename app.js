@@ -172,6 +172,7 @@ async function loadAllData() {
     { data: settingsRows },
     { data: checkins },
     { data: habitSettings },
+    { data: nutritionTips },
   ] = await Promise.all([
     supabase.from('habits').select('*').order('sort_order'),
     supabase.from('players').select('*').order('name'),
@@ -183,6 +184,7 @@ async function loadAllData() {
     supabase.from('settings').select('*'),
     supabase.from('daily_checkins').select('*'),
     supabase.from('player_habit_settings').select('*'),
+    supabase.from('player_nutrition_tips').select('*'),
   ]);
 
   state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label }));
@@ -221,6 +223,12 @@ async function loadAllData() {
     habitSettingsByPlayer[s.player_id][s.habit_id] = { timeOfDay: s.time_of_day, notifyEnabled: s.notify_enabled };
   });
 
+  const nutritionTipsByPlayer = {};
+  (nutritionTips || []).forEach(t => {
+    if (!nutritionTipsByPlayer[t.player_id]) nutritionTipsByPlayer[t.player_id] = {};
+    nutritionTipsByPlayer[t.player_id][t.category] = t.tip;
+  });
+
   state.players = (players || []).map(p => ({
     id: p.id,
     authId: p.auth_id,
@@ -229,6 +237,7 @@ async function loadAllData() {
     avatarUrl: p.avatar_url || null,
     habitsByDay: assignmentsByPlayer[p.id] || emptyWeekMap(),
     habitSettings: habitSettingsByPlayer[p.id] || {},
+    nutritionTips: nutritionTipsByPlayer[p.id] || {},
     weightLog: weightsByPlayer[p.id] || {},
     wellness: checkinsByPlayer[p.id] || {},
     fasting: {
@@ -525,6 +534,20 @@ function renderProfileCard(player) {
 
   document.getElementById('weightChartCard').innerHTML = weightChartHtml(player);
   document.getElementById('fastingChartCard').innerHTML = fastingChartHtml(player);
+  document.getElementById('nutritionTipsCard').innerHTML = nutritionTipsHtml(player);
+}
+
+function nutritionTipsHtml(player) {
+  const filled = NUTRITION_CATEGORIES.filter(cat => player.nutritionTips[cat.key]);
+  if (filled.length === 0) {
+    return '<p class="hint-text" style="margin:0">Tu entrenador todavía no te ha dejado tips nutricionales.</p>';
+  }
+  return filled.map(cat => `
+    <div class="profile-habit-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
+      <span style="font-weight:700;">${cat.emoji} ${cat.label}</span>
+      <span style="color:var(--ink-soft); font-size:0.88rem;">${(player.nutritionTips[cat.key] || '').replace(/</g, '&lt;')}</span>
+    </div>
+  `).join('');
 }
 
 async function uploadAvatarForPlayer(player, file, errorEl) {
@@ -770,6 +793,14 @@ const ENERGY_OPTIONS = [
   { value: 3, emoji: '😐', label: 'Regular' },
   { value: 4, emoji: '🙂', label: 'Fresco' },
   { value: 5, emoji: '⚡', label: 'Muy fresco' },
+];
+const NUTRITION_CATEGORIES = [
+  { key: 'desayuno', emoji: '🍳', label: 'Desayuno' },
+  { key: 'pre_entreno', emoji: '⏱️', label: 'Pre entreno' },
+  { key: 'post_entreno', emoji: '🥤', label: 'Post entreno' },
+  { key: 'comida', emoji: '🍽️', label: 'Comida' },
+  { key: 'merienda', emoji: '🍎', label: 'Merienda' },
+  { key: 'cena', emoji: '🌙', label: 'Cena' },
 ];
 
 function moodRowHtml(options, selected) {
@@ -1330,6 +1361,43 @@ function buildPlayerAdminCard(p) {
       });
       card.appendChild(settingsWrap);
     }
+
+    const nutritionTitle = document.createElement('div');
+    nutritionTitle.className = 'hint-text';
+    nutritionTitle.style.margin = '16px 0 6px';
+    nutritionTitle.textContent = 'Tips nutricionales (para este jugador)';
+    card.appendChild(nutritionTitle);
+
+    const nutritionWrap = document.createElement('div');
+    nutritionWrap.className = 'admin-list';
+    NUTRITION_CATEGORIES.forEach(cat => {
+      const row = document.createElement('div');
+      row.className = 'admin-row';
+      row.style.flexDirection = 'column';
+      row.style.alignItems = 'stretch';
+
+      const label = document.createElement('div');
+      label.className = 'admin-row-head';
+      label.innerHTML = `<span>${cat.emoji}</span><span class="flex1">${cat.label}</span>`;
+      row.appendChild(label);
+
+      const textarea = document.createElement('textarea');
+      textarea.className = 'nutrition-tip-input';
+      textarea.rows = 2;
+      textarea.placeholder = `Tip de ${cat.label.toLowerCase()}...`;
+      textarea.value = p.nutritionTips[cat.key] || '';
+      textarea.onchange = async () => {
+        await supabase.from('player_nutrition_tips').upsert(
+          { player_id: p.id, category: cat.key, tip: textarea.value.trim() || null },
+          { onConflict: 'player_id,category' }
+        );
+        await refreshAndRender();
+      };
+      row.appendChild(textarea);
+
+      nutritionWrap.appendChild(row);
+    });
+    card.appendChild(nutritionWrap);
 
     return card;
 }
