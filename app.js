@@ -417,8 +417,15 @@ async function resolveSessionAndRender() {
   render();
 }
 
+const REMEMBERED_EMAIL_KEY = 'habitosRememberedEmail';
+
+function prefillRememberedEmail() {
+  const saved = localStorage.getItem(REMEMBERED_EMAIL_KEY);
+  if (saved) document.getElementById('authEmailInput').value = saved;
+}
+
 function clearAuthInputs() {
-  document.getElementById('authEmailInput').value = '';
+  prefillRememberedEmail();
   document.getElementById('authPasswordInput').value = '';
   document.getElementById('loginFormBox').style.display = 'block';
   document.getElementById('bootstrapBox').style.display = 'none';
@@ -453,6 +460,7 @@ async function handleAuthSubmit() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) { messageEl.textContent = translateAuthError(error); return; }
     }
+    localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
     await resolveSessionAndRender();
   } finally {
     submitBtn.disabled = false;
@@ -1537,6 +1545,7 @@ function setupRealtimeSubscriptions() {
 }
 
 async function init() {
+  prefillRememberedEmail();
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
     await resolveSessionAndRender();
