@@ -267,7 +267,7 @@ body {
 }
 .field-row input { min-width: 140px; }
 
-input[type="text"], input[type="date"], input[type="time"], input[type="email"], input[type="number"], input[type="password"], select {
+input[type="text"], input[type="date"], input[type="time"], input[type="datetime-local"], input[type="email"], input[type="number"], input[type="password"], select {
   -webkit-appearance: none;
   appearance: none;
   background: var(--surface);
@@ -603,7 +603,24 @@ table.dash tr:last-child td { border-bottom: none; }
    controles siempre en líneas separadas, para que no se aprieten entre sí. */
 .habit-manage-row { flex-direction: column; align-items: stretch; }
 .habit-manage-row .admin-row-controls { flex-wrap: wrap; }
-.reorder-btn { padding: 6px 10px !important; min-width: 34px; }
+
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+  color: var(--ink-soft);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 2px 2px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.admin-row.dragging {
+  opacity: 0.65;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+  position: relative;
+  z-index: 5;
+  cursor: grabbing;
+}
 
 /* ---------- Cuadrícula semanal de asignación (jugador × hábito) ---------- */
 
@@ -680,6 +697,23 @@ table.dash tr:last-child td { border-bottom: none; }
   color: var(--ink-soft);
   font-size: 0.85rem;
   margin: 0 0 4px;
+}
+.fasting-edit-link {
+  color: var(--navy);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+.fasting-edit-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  text-align: left;
+  margin-top: 8px;
+}
+.fasting-edit-row input[type="datetime-local"] {
+  width: 100%;
 }
 
 /* ---------- Weight ---------- */

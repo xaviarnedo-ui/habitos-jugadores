@@ -71,6 +71,16 @@ function formatDateLabel(dateStr) {
   return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+function formatTimeLabel(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toDatetimeLocalValue(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function dateDaysBefore(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() - days);
@@ -124,6 +134,8 @@ let editingHabitId = null; // habit id, Hábitos tab
 let selectedAdminPlayerId = null; // player id, Jugadores tab (acordeón)
 let playerEmailEditError = '';
 let fastingIntervalId = null;
+let editingFastingStart = false; // player's own Hoy tab
+let confirmingFastingEnd = false; // player's own Hoy tab
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
 let currentCoachTab = 'equipo'; // 'equipo' | 'habitos' | 'jugadores' | 'ajustes'
@@ -928,17 +940,89 @@ function renderFastingCard(player) {
   clearFastingInterval();
   const box = document.getElementById('fastingBox');
   const f = player.fasting;
+  const nowLocal = toDatetimeLocalValue(new Date());
 
   if (f.activeStart) {
+    if (confirmingFastingEnd) {
+      box.innerHTML = `
+        <div class="fasting-active">
+          <div class="hint-text">Objetivo: ${f.goalHours}h · Inicio: ${formatTimeLabel(new Date(f.activeStart))}</div>
+          <div class="fasting-edit-row">
+            <label class="field-label" style="margin:0">Hora en la que terminaste</label>
+            <input type="datetime-local" id="fastingEndInput" value="${nowLocal}" max="${nowLocal}">
+            <div class="field-row">
+              <button class="primary" id="confirmEndFastBtn">Confirmar fin</button>
+              <button class="ghost" id="cancelEndFastBtn">Cancelar</button>
+            </div>
+            <p class="hint-text" id="fastingEndError"></p>
+          </div>
+        </div>
+      `;
+      document.getElementById('confirmEndFastBtn').onclick = () => {
+        const val = document.getElementById('fastingEndInput').value;
+        const errorEl = document.getElementById('fastingEndError');
+        const endDate = val ? new Date(val) : new Date();
+        if (endDate.getTime() < new Date(f.activeStart).getTime()) {
+          errorEl.textContent = 'La hora de fin no puede ser anterior a la de inicio.';
+          return;
+        }
+        endFast(player, endDate);
+      };
+      document.getElementById('cancelEndFastBtn').onclick = () => {
+        confirmingFastingEnd = false;
+        renderFastingCard(player);
+      };
+      return;
+    }
+
+    if (editingFastingStart) {
+      box.innerHTML = `
+        <div class="fasting-active">
+          <div class="fasting-edit-row">
+            <label class="field-label" style="margin:0">Hora en la que empezaste</label>
+            <input type="datetime-local" id="fastingStartEditInput" value="${toDatetimeLocalValue(new Date(f.activeStart))}" max="${nowLocal}">
+            <div class="field-row">
+              <button class="primary" id="saveFastStartBtn">Guardar</button>
+              <button class="ghost" id="cancelFastStartBtn">Cancelar</button>
+            </div>
+            <p class="hint-text" id="fastingStartError"></p>
+          </div>
+        </div>
+      `;
+      document.getElementById('saveFastStartBtn').onclick = () => {
+        const val = document.getElementById('fastingStartEditInput').value;
+        const errorEl = document.getElementById('fastingStartError');
+        if (!val) return;
+        const newStart = new Date(val);
+        if (newStart.getTime() > Date.now()) {
+          errorEl.textContent = 'La hora de inicio no puede ser en el futuro.';
+          return;
+        }
+        updateFastStart(player, newStart);
+      };
+      document.getElementById('cancelFastStartBtn').onclick = () => {
+        editingFastingStart = false;
+        renderFastingCard(player);
+      };
+      return;
+    }
+
     box.innerHTML = `
       <div class="fasting-active">
         <div class="fasting-elapsed" id="fastingElapsed">00:00:00</div>
-        <div class="hint-text">Objetivo: ${f.goalHours}h</div>
+        <div class="hint-text">Objetivo: ${f.goalHours}h · Inicio: ${formatTimeLabel(new Date(f.activeStart))} · <span class="fasting-edit-link" id="editFastStartLink">Editar</span></div>
         <div class="progress-bar-track"><div class="progress-bar-fill" id="fastingBarFill" style="width:0%"></div></div>
         <button class="primary" id="endFastBtn">Terminar ayuno</button>
       </div>
     `;
-    document.getElementById('endFastBtn').onclick = () => endFast(player);
+    document.getElementById('endFastBtn').onclick = () => {
+      confirmingFastingEnd = true;
+      renderFastingCard(player);
+    };
+    document.getElementById('editFastStartLink').onclick = () => {
+      editingFastingStart = true;
+      renderFastingCard(player);
+    };
 
     const tick = () => {
       const elapsedMs = Date.now() - new Date(f.activeStart).getTime();
@@ -956,6 +1040,10 @@ function renderFastingCard(player) {
     const last = f.history[f.history.length - 1];
     box.innerHTML = `
       ${last ? `<p class="fasting-last">Último ayuno: ${last.hours}h (${formatDateLabel(last.date)})</p>` : ''}
+      <div class="fasting-edit-row">
+        <label class="field-label" style="margin:0">Hora de inicio</label>
+        <input type="datetime-local" id="fastingStartInput" value="${nowLocal}" max="${nowLocal}">
+      </div>
       <div class="add-player-row">
         <select id="fastingGoalSelect">
           <option value="12">Objetivo: 12h</option>
@@ -970,24 +1058,34 @@ function renderFastingCard(player) {
     `;
     document.getElementById('startFastBtn').onclick = () => {
       const goal = parseInt(document.getElementById('fastingGoalSelect').value, 10);
-      startFast(player, goal);
+      const val = document.getElementById('fastingStartInput').value;
+      const startDate = val ? new Date(val) : new Date();
+      startFast(player, goal, startDate);
     };
   }
 }
 
-async function startFast(player, goalHours) {
+async function startFast(player, goalHours, startDate) {
   await supabase.from('fasting_sessions').upsert(
-    { player_id: player.id, active_start: new Date().toISOString(), goal_hours: goalHours },
+    { player_id: player.id, active_start: (startDate || new Date()).toISOString(), goal_hours: goalHours },
     { onConflict: 'player_id' }
   );
   await refreshAndRender();
 }
 
-async function endFast(player) {
+async function updateFastStart(player, newStart) {
+  await supabase.from('fasting_sessions').update({ active_start: newStart.toISOString() }).eq('player_id', player.id);
+  editingFastingStart = false;
+  await refreshAndRender();
+}
+
+async function endFast(player, endDate) {
   const f = player.fasting;
-  const hours = Math.round(((Date.now() - new Date(f.activeStart).getTime()) / 3600000) * 10) / 10;
-  await supabase.from('fasting_history').insert({ player_id: player.id, date: todayKey(), hours });
+  const end = endDate || new Date();
+  const hours = Math.round(((end.getTime() - new Date(f.activeStart).getTime()) / 3600000) * 10) / 10;
+  await supabase.from('fasting_history').insert({ player_id: player.id, date: todayKey(end), hours });
   await supabase.from('fasting_sessions').update({ active_start: null }).eq('player_id', player.id);
+  confirmingFastingEnd = false;
   await refreshAndRender();
 }
 
@@ -1494,17 +1592,59 @@ async function addAdminPlayer() {
   await refreshAndRender();
 }
 
-async function moveHabit(habitId, direction) {
-  const idx = state.habits.findIndex(h => h.id === habitId);
-  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-  if (idx === -1 || swapIdx < 0 || swapIdx >= state.habits.length) return;
-  const a = state.habits[idx];
-  const b = state.habits[swapIdx];
-  await Promise.all([
-    supabase.from('habits').update({ sort_order: b.sortOrder }).eq('id', a.id),
-    supabase.from('habits').update({ sort_order: a.sortOrder }).eq('id', b.id),
-  ]);
-  await refreshAndRender();
+async function commitHabitOrder(box) {
+  const orderedIds = Array.from(box.children)
+    .filter(el => el.classList.contains('admin-row') && el.dataset.habitId)
+    .map(el => el.dataset.habitId);
+  const ordered = orderedIds.map(id => state.habits.find(h => h.id === id)).filter(Boolean);
+  const updates = [];
+  ordered.forEach((h, i) => {
+    const newSortOrder = i + 1;
+    if (h.sortOrder !== newSortOrder) {
+      updates.push(supabase.from('habits').update({ sort_order: newSortOrder }).eq('id', h.id));
+    }
+  });
+  if (updates.length > 0) {
+    await Promise.all(updates);
+    await refreshAndRender();
+  }
+}
+
+function startHabitDrag(e, row, box) {
+  e.preventDefault();
+  const pointerId = e.pointerId;
+  row.setPointerCapture(pointerId);
+  row.classList.add('dragging');
+
+  const onMove = ev => {
+    if (ev.pointerId !== pointerId) return;
+    const y = ev.clientY;
+    const siblings = Array.from(box.children).filter(el => el !== row && el.classList.contains('admin-row'));
+    let target = null;
+    for (const sib of siblings) {
+      const rect = sib.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) { target = sib; break; }
+    }
+    if (target) {
+      if (target.previousElementSibling !== row) box.insertBefore(row, target);
+    } else if (box.lastElementChild !== row) {
+      box.appendChild(row);
+    }
+  };
+
+  const onUp = async ev => {
+    if (ev.pointerId !== pointerId) return;
+    try { row.releasePointerCapture(pointerId); } catch (err) {}
+    row.classList.remove('dragging');
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    await commitHabitOrder(box);
+  };
+
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
 }
 
 function renderAdminHabits() {
@@ -1517,6 +1657,7 @@ function renderAdminHabits() {
   state.habits.forEach((h, i) => {
     const row = document.createElement('div');
     row.className = 'admin-row habit-manage-row';
+    row.dataset.habitId = h.id;
 
     if (editingHabitId === h.id) {
       const editRow = document.createElement('div');
@@ -1558,27 +1699,12 @@ function renderAdminHabits() {
 
     const head = document.createElement('div');
     head.className = 'admin-row-head';
-    head.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+    head.innerHTML = `<span class="drag-handle" title="Arrastra para reordenar">⠿</span><span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
     row.appendChild(head);
+    head.querySelector('.drag-handle').addEventListener('pointerdown', e => startHabitDrag(e, row, box));
 
     const controls = document.createElement('div');
     controls.className = 'admin-row-controls';
-
-    const upBtn = document.createElement('button');
-    upBtn.className = 'ghost reorder-btn';
-    upBtn.textContent = '▲';
-    upBtn.title = 'Subir';
-    upBtn.disabled = i === 0;
-    upBtn.onclick = () => moveHabit(h.id, 'up');
-    controls.appendChild(upBtn);
-
-    const downBtn = document.createElement('button');
-    downBtn.className = 'ghost reorder-btn';
-    downBtn.textContent = '▼';
-    downBtn.title = 'Bajar';
-    downBtn.disabled = i === state.habits.length - 1;
-    downBtn.onclick = () => moveHabit(h.id, 'down');
-    controls.appendChild(downBtn);
 
     const editBtn = document.createElement('button');
     editBtn.className = 'ghost';
