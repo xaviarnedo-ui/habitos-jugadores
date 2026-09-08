@@ -832,6 +832,23 @@ input[type="time"].schedule-time-input {
 .account-avatar-btn { cursor: pointer; }
 .account-avatar-btn .avatar-thumb { width: 40px; height: 40px; font-size: 0.85rem; }
 
+/* ---------- Lista de jugadores al asignar un hábito (batería) ---------- */
+
+.assign-player-list { display: flex; flex-direction: column; gap: 6px; }
+.assign-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.assign-player-row:hover { border-color: var(--blue); }
+.assign-player-row input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; accent-color: var(--navy); }
+.assign-player-row-info { display: flex; align-items: center; font-weight: 600; font-size: 0.9rem; }
+
 .inline-edit-row {
   display: flex;
   flex-wrap: wrap;

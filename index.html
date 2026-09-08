@@ -163,8 +163,15 @@
         </div>
 
         <div class="tab-content" data-tab="habitos" id="tab-coach-habitos">
+          <div class="section-title">Jugadores</div>
+          <p class="hint-text">Elige un jugador para ajustar qué días, hora y aviso de los hábitos que ya tiene asignados, y su objetivo de ayuno. Para asignarle un hábito nuevo, hazlo desde la batería de abajo.</p>
+          <div class="field-row" style="margin-top:0">
+            <input type="search" id="habitosSearchInput" placeholder="Buscar jugador...">
+          </div>
+          <div class="admin-list" id="habitosPlayerList"></div>
+
           <div class="section-title">Batería de hábitos</div>
-          <p class="hint-text">El catálogo completo de hábitos disponibles. Arrastra ⠿ para reordenar.</p>
+          <p class="hint-text">El catálogo completo de hábitos disponibles. Arrastra ⠿ para reordenar, o pulsa "Asignar" para dárselo a los jugadores que quieras.</p>
           <div class="card">
             <div class="admin-list" id="adminHabitList"></div>
             <div class="field-row">
@@ -173,13 +180,6 @@
               <button class="primary" id="adminAddHabitBtn">Añadir</button>
             </div>
           </div>
-
-          <div class="section-title">Asignar a jugadores</div>
-          <p class="hint-text">Elige un jugador para marcar qué días tiene cada hábito, a qué hora, si avisa, y su objetivo de ayuno.</p>
-          <div class="field-row" style="margin-top:0">
-            <input type="search" id="habitosSearchInput" placeholder="Buscar jugador...">
-          </div>
-          <div class="admin-list" id="habitosPlayerList"></div>
         </div>
 
         <div class="tab-content" data-tab="tips" id="tab-coach-tips">

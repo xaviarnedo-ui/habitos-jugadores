@@ -130,6 +130,7 @@ let state = {
 let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
 let editingHabitId = null; // habit id, Hábitos tab
+let assigningHabitId = null; // habit id, panel "Asignar" de la batería de hábitos
 let selectedPlayerId = null; // player id, fila abierta en el acordeón (Resumen/Hábitos/Tips)
 let addingNewPlayer = false; // Resumen, formulario "Nuevo jugador"
 let playerEmailEditError = '';
@@ -1282,6 +1283,13 @@ function buildHabitScheduleGrid(p) {
     wrap.textContent = 'Añade hábitos a la batería primero.';
     return wrap;
   }
+  const assignedHabits = state.habits.filter(h => WEEKDAYS.some(d => (p.habitsByDay[d.key] || []).includes(h.id)));
+  if (assignedHabits.length === 0) {
+    wrap.className = 'hint-text';
+    wrap.style.margin = '0';
+    wrap.textContent = 'Este jugador no tiene hábitos asignados. Ve a un hábito de la batería y pulsa "Asignar" para dárselo.';
+    return wrap;
+  }
   wrap.className = 'assign-grid-wrap';
   const grid = document.createElement('div');
   grid.className = 'assign-grid schedule-grid';
@@ -1300,7 +1308,7 @@ function buildHabitScheduleGrid(p) {
     grid.appendChild(label);
   });
 
-  state.habits.forEach(h => {
+  assignedHabits.forEach(h => {
     const nameCell = document.createElement('div');
     nameCell.className = 'assign-grid-habit';
     nameCell.innerHTML = `<span>${h.emoji}</span><span>${h.label}</span>`;
@@ -1885,6 +1893,15 @@ function renderAdminHabits() {
     const controls = document.createElement('div');
     controls.className = 'admin-row-controls';
 
+    const assignBtn = document.createElement('button');
+    assignBtn.className = assigningHabitId === h.id ? 'primary' : 'ghost';
+    assignBtn.textContent = 'Asignar';
+    assignBtn.onclick = () => {
+      assigningHabitId = assigningHabitId === h.id ? null : h.id;
+      renderCoach();
+    };
+    controls.appendChild(assignBtn);
+
     const editBtn = document.createElement('button');
     editBtn.className = 'ghost';
     editBtn.textContent = 'Editar';
@@ -1899,13 +1916,67 @@ function renderAdminHabits() {
     delBtn.textContent = 'Eliminar';
     delBtn.onclick = async () => {
       await supabase.from('habits').delete().eq('id', h.id);
+      if (assigningHabitId === h.id) assigningHabitId = null;
       await refreshAndRender();
     };
     controls.appendChild(delBtn);
 
     row.appendChild(controls);
     box.appendChild(row);
+
+    if (assigningHabitId === h.id) {
+      const assignWrap = document.createElement('div');
+      assignWrap.className = 'player-accordion-detail';
+      const title = document.createElement('div');
+      title.className = 'hint-text';
+      title.style.margin = '0 0 8px';
+      title.textContent = `Jugadores con "${h.label}" asignado (todos los días; ajusta días concretos, hora y aviso desde la pestaña Hábitos → Asignar a jugadores).`;
+      assignWrap.appendChild(title);
+      assignWrap.appendChild(buildHabitAssignPlayersPanel(h));
+      box.appendChild(assignWrap);
+    }
   });
+}
+
+function buildHabitAssignPlayersPanel(h) {
+  const wrap = document.createElement('div');
+  if (state.players.length === 0) {
+    wrap.className = 'hint-text';
+    wrap.style.margin = '0';
+    wrap.textContent = 'Añade jugadores primero, en la pestaña Resumen.';
+    return wrap;
+  }
+  wrap.className = 'assign-player-list';
+  state.players.forEach(p => {
+    const assignedAnyDay = WEEKDAYS.some(d => (p.habitsByDay[d.key] || []).includes(h.id));
+    const row = document.createElement('label');
+    row.className = 'assign-player-row';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = assignedAnyDay;
+    checkbox.onchange = () => setHabitAssignedForPlayer(h, p, checkbox.checked);
+    row.appendChild(checkbox);
+    const info = document.createElement('span');
+    info.className = 'assign-player-row-info';
+    info.innerHTML = `${avatarThumbHtml(p)}${p.name}`;
+    row.appendChild(info);
+    wrap.appendChild(row);
+  });
+  return wrap;
+}
+
+async function setHabitAssignedForPlayer(habit, player, assign) {
+  if (assign) {
+    const missingDays = WEEKDAYS.map(d => d.key).filter(wd => !(player.habitsByDay[wd] || []).includes(habit.id));
+    if (missingDays.length > 0) {
+      await supabase.from('assignments').insert(
+        missingDays.map(wd => ({ player_id: player.id, weekday: wd, habit_id: habit.id }))
+      );
+    }
+  } else {
+    await supabase.from('assignments').delete().match({ player_id: player.id, habit_id: habit.id });
+  }
+  await refreshAndRender();
 }
 
 async function addAdminHabit() {
