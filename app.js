@@ -1497,6 +1497,48 @@ function buildPlayerAdminCard(p) {
       card.appendChild(settingsWrap);
     }
 
+    const fastingTitle = document.createElement('div');
+    fastingTitle.className = 'hint-text';
+    fastingTitle.style.margin = '16px 0 6px';
+    fastingTitle.textContent = 'Objetivo de ayuno (para este jugador)';
+    card.appendChild(fastingTitle);
+
+    const fastingRow = document.createElement('div');
+    fastingRow.className = 'admin-row';
+    const fastingLabel = document.createElement('div');
+    fastingLabel.className = 'admin-row-head';
+    fastingLabel.innerHTML = `<span>⏳</span><span class="flex1">${p.fasting.activeStart ? 'Ayuno en curso' : 'Próximo ayuno'}</span>`;
+    fastingRow.appendChild(fastingLabel);
+
+    const fastingControls = document.createElement('div');
+    fastingControls.className = 'admin-row-controls';
+    const fastingGoalSelect = document.createElement('select');
+    [12, 14, 16, 18, 20, 24].forEach(hrs => {
+      const opt = document.createElement('option');
+      opt.value = hrs;
+      opt.textContent = `${hrs}h`;
+      if (hrs === p.fasting.goalHours) opt.selected = true;
+      fastingGoalSelect.appendChild(opt);
+    });
+    const fastingErr = document.createElement('div');
+    fastingErr.className = 'hint-text';
+    fastingGoalSelect.onchange = async () => {
+      fastingErr.textContent = '';
+      const { error } = await supabase.from('fasting_sessions').upsert(
+        { player_id: p.id, goal_hours: parseInt(fastingGoalSelect.value, 10) },
+        { onConflict: 'player_id' }
+      );
+      if (error) {
+        fastingErr.textContent = 'No se pudo guardar: ' + (error.message || 'error desconocido');
+        return;
+      }
+      await refreshAndRender();
+    };
+    fastingControls.appendChild(fastingGoalSelect);
+    fastingRow.appendChild(fastingControls);
+    card.appendChild(fastingRow);
+    card.appendChild(fastingErr);
+
     const nutritionTitle = document.createElement('div');
     nutritionTitle.className = 'hint-text';
     nutritionTitle.style.margin = '16px 0 6px';
@@ -1521,14 +1563,22 @@ function buildPlayerAdminCard(p) {
       textarea.rows = 2;
       textarea.placeholder = `Tip de ${cat.label.toLowerCase()}...`;
       textarea.value = p.nutritionTips[cat.key] || '';
+      const tipErr = document.createElement('div');
+      tipErr.className = 'hint-text';
       textarea.onchange = async () => {
-        await supabase.from('player_nutrition_tips').upsert(
+        tipErr.textContent = '';
+        const { error } = await supabase.from('player_nutrition_tips').upsert(
           { player_id: p.id, category: cat.key, tip: textarea.value.trim() || null },
           { onConflict: 'player_id,category' }
         );
+        if (error) {
+          tipErr.textContent = 'No se pudo guardar: ' + (error.message || 'error desconocido');
+          return;
+        }
         await refreshAndRender();
       };
       row.appendChild(textarea);
+      row.appendChild(tipErr);
 
       nutritionWrap.appendChild(row);
     });
