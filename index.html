@@ -78,6 +78,12 @@
 
         <div class="tab-content active" data-tab="hoy" id="tab-player-hoy">
           <p class="field-label" id="todayDateLabel"></p>
+
+          <div id="noticesSection" style="display:none">
+            <div class="section-title">Avisos de tu entrenador</div>
+            <div id="noticesCard"></div>
+          </div>
+
           <div class="card stat-hero">
             <div class="stat-hero-value display mono" id="todayPct">0%</div>
             <div class="stat-hero-label">cumplimiento de hoy</div>
@@ -191,6 +197,15 @@
           <div class="admin-list" id="tipsPlayerList"></div>
         </div>
 
+        <div class="tab-content" data-tab="avisos" id="tab-coach-avisos">
+          <div class="section-title">Jugadores</div>
+          <p class="hint-text">Escribe un aviso para un jugador (p.ej. "Comprar báscula") y le aparecerá cada día hasta que lo marque como hecho.</p>
+          <div class="field-row" style="margin-top:0">
+            <input type="search" id="avisosSearchInput" placeholder="Buscar jugador...">
+          </div>
+          <div class="admin-list" id="avisosPlayerList"></div>
+        </div>
+
         <div class="tab-content" data-tab="ajustes" id="tab-coach-ajustes">
           <div class="section-title">Ajustes</div>
           <div class="card">
@@ -233,6 +248,7 @@
       <button class="nav-item" data-tab="resumen"><span class="nav-icon">📊</span><span class="nav-label">Resumen</span></button>
       <button class="nav-item" data-tab="habitos"><span class="nav-icon">✅</span><span class="nav-label">Hábitos</span></button>
       <button class="nav-item" data-tab="tips"><span class="nav-icon">🍎</span><span class="nav-label">Tips</span></button>
+      <button class="nav-item" data-tab="avisos"><span class="nav-icon">📌</span><span class="nav-label">Avisos</span></button>
       <button class="nav-item" data-tab="ajustes"><span class="nav-icon">⚙️</span><span class="nav-label">Ajustes</span></button>
       <button class="sidebar-toggle" id="sidebarToggleBtn" title="Reducir menú">‹</button>
     </nav>

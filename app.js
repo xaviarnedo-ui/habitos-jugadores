@@ -139,10 +139,10 @@ let editingFastingStart = false; // player's own Hoy tab
 let confirmingFastingEnd = false; // player's own Hoy tab
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
-let currentCoachTab = 'inicio'; // 'inicio' | 'resumen' | 'habitos' | 'tips' | 'ajustes'
+let currentCoachTab = 'inicio'; // 'inicio' | 'resumen' | 'habitos' | 'tips' | 'avisos' | 'ajustes'
 
 const PLAYER_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', tips: 'TIPS', perfil: 'PERFIL' };
-const COACH_TAB_TITLES = { inicio: 'INICIO', resumen: 'RESUMEN', habitos: 'HÁBITOS', tips: 'TIPS', ajustes: 'AJUSTES' };
+const COACH_TAB_TITLES = { inicio: 'INICIO', resumen: 'RESUMEN', habitos: 'HÁBITOS', tips: 'TIPS', avisos: 'AVISOS', ajustes: 'AJUSTES' };
 
 function showTab(role, tabName) {
   const prefix = role === 'player' ? 'tab-player-' : 'tab-coach-';
@@ -197,6 +197,7 @@ async function loadAllData(retried = false) {
     supabase.from('daily_checkins').select('*'),
     supabase.from('player_habit_settings').select('*'),
     supabase.from('player_nutrition_tips').select('*'),
+    supabase.from('player_notices').select('*').order('created_at'),
   ]);
 
   const authError = results.find(r => r.error && /jwt|token|auth/i.test(r.error.message || ''));
@@ -218,6 +219,7 @@ async function loadAllData(retried = false) {
     { data: checkins },
     { data: habitSettings },
     { data: nutritionTips },
+    { data: notices },
   ] = results;
 
   state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label, sortOrder: h.sort_order }));
@@ -262,6 +264,12 @@ async function loadAllData(retried = false) {
     nutritionTipsByPlayer[t.player_id][t.category] = t.tip;
   });
 
+  const noticesByPlayer = {};
+  (notices || []).forEach(n => {
+    if (!noticesByPlayer[n.player_id]) noticesByPlayer[n.player_id] = [];
+    noticesByPlayer[n.player_id].push({ id: n.id, message: n.message, done: n.done, createdAt: n.created_at });
+  });
+
   state.players = (players || []).map(p => ({
     id: p.id,
     authId: p.auth_id,
@@ -271,6 +279,7 @@ async function loadAllData(retried = false) {
     habitsByDay: assignmentsByPlayer[p.id] || emptyWeekMap(),
     habitSettings: habitSettingsByPlayer[p.id] || {},
     nutritionTips: nutritionTipsByPlayer[p.id] || {},
+    notices: noticesByPlayer[p.id] || [],
     weightLog: weightsByPlayer[p.id] || {},
     wellness: checkinsByPlayer[p.id] || {},
     fasting: {
@@ -640,9 +649,39 @@ async function uploadAvatarForPlayer(player, file, errorEl) {
   await refreshAndRender();
 }
 
+function renderNoticesCard(player) {
+  const section = document.getElementById('noticesSection');
+  const box = document.getElementById('noticesCard');
+  const pending = (player.notices || []).filter(n => !n.done);
+  if (pending.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  box.innerHTML = '';
+  pending.forEach(n => {
+    const row = document.createElement('div');
+    row.className = 'notice-player-row';
+    const text = document.createElement('span');
+    text.className = 'flex1';
+    text.textContent = '📌 ' + n.message;
+    row.appendChild(text);
+    const doneBtn = document.createElement('button');
+    doneBtn.className = 'ghost';
+    doneBtn.textContent = 'Hecho';
+    doneBtn.onclick = async () => {
+      await supabase.from('player_notices').update({ done: true }).eq('id', n.id);
+      await refreshAndRender();
+    };
+    row.appendChild(doneBtn);
+    box.appendChild(row);
+  });
+}
+
 function renderPlayerToday(player) {
   renderProfileCard(player);
   document.getElementById('nutritionTipsCard').innerHTML = nutritionTipsHtml(player);
+  renderNoticesCard(player);
   const today = todayKey();
   document.getElementById('todayDateLabel').textContent = formatDateLabel(today);
 
@@ -1269,6 +1308,7 @@ function renderCoach() {
   renderResumenTab(date);
   renderHabitosAssignSection();
   renderTipsTab();
+  renderNoticesTab();
 
   contentEl.scrollTop = scrollY;
 }
@@ -1756,6 +1796,122 @@ function renderTipsTab() {
   );
 }
 
+function buildNoticesPanel(p) {
+  const wrap = document.createElement('div');
+  const pending = p.notices.filter(n => !n.done);
+  const done = p.notices.filter(n => n.done);
+
+  const removeNotice = async (id) => {
+    await supabase.from('player_notices').delete().eq('id', id);
+    await refreshAndRender();
+  };
+
+  if (pending.length > 0) {
+    const list = document.createElement('div');
+    list.className = 'admin-list';
+    pending.forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'admin-row';
+      const head = document.createElement('div');
+      head.className = 'admin-row-head';
+      const msg = document.createElement('span');
+      msg.className = 'flex1';
+      msg.textContent = n.message;
+      head.appendChild(msg);
+      row.appendChild(head);
+      const controls = document.createElement('div');
+      controls.className = 'admin-row-controls';
+      const delBtn = document.createElement('button');
+      delBtn.className = 'danger';
+      delBtn.textContent = 'Eliminar';
+      delBtn.onclick = () => removeNotice(n.id);
+      controls.appendChild(delBtn);
+      row.appendChild(controls);
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+  } else {
+    const empty = document.createElement('p');
+    empty.className = 'hint-text';
+    empty.style.margin = '0';
+    empty.textContent = 'Sin avisos pendientes.';
+    wrap.appendChild(empty);
+  }
+
+  if (done.length > 0) {
+    const doneTitle = document.createElement('div');
+    doneTitle.className = 'hint-text';
+    doneTitle.style.margin = '14px 0 6px';
+    doneTitle.textContent = `Hechos (${done.length})`;
+    wrap.appendChild(doneTitle);
+    const doneList = document.createElement('div');
+    doneList.className = 'admin-list';
+    done.forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'admin-row';
+      row.style.opacity = '0.6';
+      const head = document.createElement('div');
+      head.className = 'admin-row-head';
+      const msg = document.createElement('span');
+      msg.className = 'flex1';
+      msg.style.textDecoration = 'line-through';
+      msg.textContent = n.message;
+      head.appendChild(msg);
+      row.appendChild(head);
+      const controls = document.createElement('div');
+      controls.className = 'admin-row-controls';
+      const delBtn = document.createElement('button');
+      delBtn.className = 'danger';
+      delBtn.textContent = 'Eliminar';
+      delBtn.onclick = () => removeNotice(n.id);
+      controls.appendChild(delBtn);
+      row.appendChild(controls);
+      doneList.appendChild(row);
+    });
+    wrap.appendChild(doneList);
+  }
+
+  const addTitle = document.createElement('div');
+  addTitle.className = 'hint-text';
+  addTitle.style.margin = '18px 0 6px';
+  addTitle.textContent = 'Nuevo aviso';
+  wrap.appendChild(addTitle);
+
+  const addRow = document.createElement('div');
+  addRow.className = 'field-row';
+  addRow.style.marginTop = '0';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Ej. Comprar báscula';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'primary';
+  addBtn.textContent = 'Añadir';
+  const submit = async () => {
+    const msg = input.value.trim();
+    if (!msg) return;
+    await supabase.from('player_notices').insert({ player_id: p.id, message: msg });
+    await refreshAndRender();
+  };
+  addBtn.onclick = submit;
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+  addRow.appendChild(input);
+  addRow.appendChild(addBtn);
+  wrap.appendChild(addRow);
+
+  return wrap;
+}
+
+function renderNoticesTab() {
+  renderPlayerAccordionList(
+    'avisosPlayerList', 'avisosSearchInput',
+    p => buildNoticesPanel(p),
+    p => {
+      const pending = p.notices.filter(n => !n.done).length;
+      return pending > 0 ? `${pending} aviso${pending === 1 ? '' : 's'} pendiente${pending === 1 ? '' : 's'}` : 'Sin avisos pendientes';
+    }
+  );
+}
+
 async function addAdminPlayer() {
   const nameInput = document.getElementById('adminNewPlayerInput');
   const emailInput = document.getElementById('adminNewPlayerEmailInput');
@@ -2036,7 +2192,7 @@ document.getElementById('cancelAddPlayerBtn').addEventListener('click', () => {
   document.getElementById('adminAddPlayerError').textContent = '';
   renderCoach();
 });
-['resumenSearchInput', 'habitosSearchInput', 'tipsSearchInput'].forEach(id => {
+['resumenSearchInput', 'habitosSearchInput', 'tipsSearchInput', 'avisosSearchInput'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
     renderCoach();
   });
