@@ -173,20 +173,18 @@ function getPlayerById(id) {
   return state.players.find(p => p.id === id);
 }
 
-async function loadAllData() {
-  const [
-    { data: habits },
-    { data: players },
-    { data: assignments },
-    { data: checks },
-    { data: weights },
-    { data: fastingSessions },
-    { data: fastingHistory },
-    { data: settingsRows },
-    { data: checkins },
-    { data: habitSettings },
-    { data: nutritionTips },
-  ] = await Promise.all([
+async function loadAllData(retried = false) {
+  // Si el móvil ha pasado mucho rato en segundo plano (toda la noche, por
+  // ejemplo), el token de sesión puede haber caducado sin refrescarse a
+  // tiempo. getSession() lo detecta y lo refresca antes de consultar; si
+  // aun así alguna consulta falla por eso, se reintenta una vez tras forzar
+  // el refresco. Sin esto, las consultas fallaban en silencio (data=null,
+  // el error no se comprobaba) y la app parecía "resetearse" -- por
+  // ejemplo, un ayuno en curso desaparecía y volvía a mostrar "Empezar
+  // ayuno" aunque en la base de datos siguiera activo.
+  await supabase.auth.getSession();
+
+  const results = await Promise.all([
     supabase.from('habits').select('*').order('sort_order'),
     supabase.from('players').select('*').order('name'),
     supabase.from('assignments').select('*'),
@@ -199,6 +197,27 @@ async function loadAllData() {
     supabase.from('player_habit_settings').select('*'),
     supabase.from('player_nutrition_tips').select('*'),
   ]);
+
+  const authError = results.find(r => r.error && /jwt|token|auth/i.test(r.error.message || ''));
+  if (authError && !retried) {
+    await supabase.auth.refreshSession();
+    return loadAllData(true);
+  }
+  results.forEach(r => { if (r.error) console.warn('[loadAllData] fallo en una consulta:', r.error.message); });
+
+  const [
+    { data: habits },
+    { data: players },
+    { data: assignments },
+    { data: checks },
+    { data: weights },
+    { data: fastingSessions },
+    { data: fastingHistory },
+    { data: settingsRows },
+    { data: checkins },
+    { data: habitSettings },
+    { data: nutritionTips },
+  ] = results;
 
   state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label, sortOrder: h.sort_order }));
   state.coachAuthId = settingsRows && settingsRows[0] ? settingsRows[0].coach_auth_id : null;
@@ -1905,6 +1924,16 @@ function setupRealtimeSubscriptions() {
   });
   channel.subscribe();
 }
+
+// Cuando el móvil vuelve de segundo plano (p. ej. se reabre la app al día
+// siguiente) sin llegar a recargar la página del todo, refresca los datos:
+// evita que se vea información obsoleta (o que un ayuno en curso parezca
+// haberse perdido) hasta que el usuario toque algo.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.session) {
+    refreshAndRender();
+  }
+});
 
 async function init() {
   prefillRememberedEmail();
