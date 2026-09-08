@@ -599,6 +599,12 @@ table.dash tr:last-child td { border-bottom: none; }
 .admin-row .flex1 { flex: 1; }
 .admin-row-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
+/* Filas con varios botones de acción (editar/reordenar/eliminar): cabecera y
+   controles siempre en líneas separadas, para que no se aprieten entre sí. */
+.habit-manage-row { flex-direction: column; align-items: stretch; }
+.habit-manage-row .admin-row-controls { flex-wrap: wrap; }
+.reorder-btn { padding: 6px 10px !important; min-width: 34px; }
+
 /* ---------- Cuadrícula semanal de asignación (jugador × hábito) ---------- */
 
 .assign-grid-wrap { overflow-x: auto; }

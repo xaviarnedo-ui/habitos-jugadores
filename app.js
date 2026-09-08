@@ -120,6 +120,7 @@ let state = {
 let selectedDetailPlayer = null; // player id
 let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
+let editingHabitId = null; // habit id, Hábitos tab
 let selectedAdminPlayerId = null; // player id, Jugadores tab (acordeón)
 let playerEmailEditError = '';
 let fastingIntervalId = null;
@@ -187,7 +188,7 @@ async function loadAllData() {
     supabase.from('player_nutrition_tips').select('*'),
   ]);
 
-  state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label }));
+  state.habits = (habits || []).map(h => ({ id: h.id, emoji: h.emoji, label: h.label, sortOrder: h.sort_order }));
   state.coachAuthId = settingsRows && settingsRows[0] ? settingsRows[0].coach_auth_id : null;
 
   const assignmentsByPlayer = {};
@@ -1493,6 +1494,19 @@ async function addAdminPlayer() {
   await refreshAndRender();
 }
 
+async function moveHabit(habitId, direction) {
+  const idx = state.habits.findIndex(h => h.id === habitId);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (idx === -1 || swapIdx < 0 || swapIdx >= state.habits.length) return;
+  const a = state.habits[idx];
+  const b = state.habits[swapIdx];
+  await Promise.all([
+    supabase.from('habits').update({ sort_order: b.sortOrder }).eq('id', a.id),
+    supabase.from('habits').update({ sort_order: a.sortOrder }).eq('id', b.id),
+  ]);
+  await refreshAndRender();
+}
+
 function renderAdminHabits() {
   const box = document.getElementById('adminHabitList');
   box.innerHTML = '';
@@ -1500,13 +1514,80 @@ function renderAdminHabits() {
     box.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Sin hábitos en la batería todavía.</div>';
     return;
   }
-  state.habits.forEach(h => {
+  state.habits.forEach((h, i) => {
     const row = document.createElement('div');
-    row.className = 'admin-row';
+    row.className = 'admin-row habit-manage-row';
+
+    if (editingHabitId === h.id) {
+      const editRow = document.createElement('div');
+      editRow.className = 'inline-edit-row';
+      const emojiInput = document.createElement('input');
+      emojiInput.type = 'text';
+      emojiInput.value = h.emoji;
+      emojiInput.style.flex = '0 0 60px';
+      emojiInput.placeholder = 'Emoji';
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.value = h.label;
+      labelInput.placeholder = 'Nombre del hábito';
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'primary';
+      saveBtn.textContent = 'Guardar';
+      saveBtn.onclick = async () => {
+        const newLabel = labelInput.value.trim();
+        if (!newLabel) return;
+        await supabase.from('habits').update({ emoji: emojiInput.value.trim() || '✅', label: newLabel }).eq('id', h.id);
+        editingHabitId = null;
+        await refreshAndRender();
+      };
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'ghost';
+      cancelBtn.textContent = 'Cancelar';
+      cancelBtn.onclick = () => {
+        editingHabitId = null;
+        renderCoach();
+      };
+      editRow.appendChild(emojiInput);
+      editRow.appendChild(labelInput);
+      editRow.appendChild(saveBtn);
+      editRow.appendChild(cancelBtn);
+      row.appendChild(editRow);
+      box.appendChild(row);
+      return;
+    }
 
     const head = document.createElement('div');
     head.className = 'admin-row-head';
     head.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+    row.appendChild(head);
+
+    const controls = document.createElement('div');
+    controls.className = 'admin-row-controls';
+
+    const upBtn = document.createElement('button');
+    upBtn.className = 'ghost reorder-btn';
+    upBtn.textContent = '▲';
+    upBtn.title = 'Subir';
+    upBtn.disabled = i === 0;
+    upBtn.onclick = () => moveHabit(h.id, 'up');
+    controls.appendChild(upBtn);
+
+    const downBtn = document.createElement('button');
+    downBtn.className = 'ghost reorder-btn';
+    downBtn.textContent = '▼';
+    downBtn.title = 'Bajar';
+    downBtn.disabled = i === state.habits.length - 1;
+    downBtn.onclick = () => moveHabit(h.id, 'down');
+    controls.appendChild(downBtn);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'ghost';
+    editBtn.textContent = 'Editar';
+    editBtn.onclick = () => {
+      editingHabitId = h.id;
+      renderCoach();
+    };
+    controls.appendChild(editBtn);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'danger';
@@ -1515,8 +1596,9 @@ function renderAdminHabits() {
       await supabase.from('habits').delete().eq('id', h.id);
       await refreshAndRender();
     };
-    head.appendChild(delBtn);
-    row.appendChild(head);
+    controls.appendChild(delBtn);
+
+    row.appendChild(controls);
     box.appendChild(row);
   });
 }
