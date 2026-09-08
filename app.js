@@ -130,7 +130,9 @@ let state = {
 let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
 let editingHabitId = null; // habit id, Hábitos tab
-let selectedAdminPlayerId = null; // player id, Jugadores tab (acordeón)
+let selectedPlayerId = null; // player id, Jugadores tab (ficha abierta)
+let currentPlayerDetailSubtab = 'resumen'; // 'resumen' | 'habitos' | 'ayuno' | 'nutricion' | 'cuenta'
+let addingNewPlayer = false; // Jugadores tab, formulario "Nuevo jugador"
 let playerEmailEditError = '';
 let fastingIntervalId = null;
 let editingFastingStart = false; // player's own Hoy tab
@@ -764,10 +766,9 @@ function getPreviousWeightEntry(player, beforeDate) {
   return { date, kg: player.weightLog[date] };
 }
 
-function weightChartHtml(player) {
-  const today = todayKey();
+function weightChartHtml(player, endDate = todayKey()) {
   const dates = [];
-  for (let i = 6; i >= 0; i--) dates.push(dateDaysBefore(today, i));
+  for (let i = 6; i >= 0; i--) dates.push(dateDaysBefore(endDate, i));
 
   const points = dates.map(d => ({ date: d, kg: player.weightLog[d] }));
   const known = points.filter(p => p.kg !== undefined);
@@ -803,10 +804,9 @@ function weightChartHtml(player) {
   `;
 }
 
-function fastingChartHtml(player) {
-  const today = todayKey();
+function fastingChartHtml(player, endDate = todayKey()) {
   const dates = [];
-  for (let i = 6; i >= 0; i--) dates.push(dateDaysBefore(today, i));
+  for (let i = 6; i >= 0; i--) dates.push(dateDaysBefore(endDate, i));
   const goal = player.fasting.goalHours || 16;
 
   const entries = dates.map(d => {
@@ -1190,9 +1190,10 @@ function pctBadgeHtml(pct) {
   return `<span class="pct-badge ${pctTierClass(pct)}">${pct === null ? '–' : pct + '%'}</span>`;
 }
 
-function openPlayerDetail(playerId) {
+function openPlayerDetail(playerId, subtab = 'resumen') {
   currentCoachTab = 'jugadores';
-  selectedAdminPlayerId = playerId;
+  selectedPlayerId = playerId;
+  currentPlayerDetailSubtab = subtab;
   document.getElementById('content').scrollTop = 0;
   render();
 }
@@ -1201,16 +1202,16 @@ function computeCoachAlerts() {
   const alerts = [];
   state.players.forEach(p => {
     if (!p.authId) {
-      alerts.push({ playerId: p.id, playerName: p.name, icon: '✉️', message: 'Todavía no se ha registrado en la app.' });
+      alerts.push({ playerId: p.id, playerName: p.name, icon: '✉️', message: 'Todavía no se ha registrado en la app.', subtab: 'cuenta' });
     }
     const assignedAnyDay = new Set();
     WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
     if (assignedAnyDay.size === 0) {
-      alerts.push({ playerId: p.id, playerName: p.name, icon: '📭', message: 'No tiene ningún hábito asignado.' });
+      alerts.push({ playerId: p.id, playerName: p.name, icon: '📭', message: 'No tiene ningún hábito asignado.', subtab: 'habitos' });
     } else {
       const summary = computeWeeklySummary(p);
       if (summary.totalAssigned >= 3 && summary.pct !== null && summary.pct < LOW_COMPLETION_THRESHOLD) {
-        alerts.push({ playerId: p.id, playerName: p.name, icon: '📉', message: `Cumplimiento bajo esta semana: ${summary.pct}%.` });
+        alerts.push({ playerId: p.id, playerName: p.name, icon: '📉', message: `Cumplimiento bajo esta semana: ${summary.pct}%.`, subtab: 'resumen' });
       }
     }
   });
@@ -1229,7 +1230,7 @@ function renderAttentionPanel() {
   ).join('');
   box.querySelectorAll('.alert-row').forEach(row => {
     const alert = alerts[Number(row.dataset.idx)];
-    row.onclick = () => openPlayerDetail(alert.playerId);
+    row.onclick = () => openPlayerDetail(alert.playerId, alert.subtab);
   });
 }
 
@@ -1284,6 +1285,7 @@ function renderTeamRoster(date) {
 function renderCoach() {
   const contentEl = document.getElementById('content');
   const scrollY = contentEl.scrollTop;
+  contentEl.classList.toggle('coach-wide', currentCoachTab === 'jugadores');
   const picker = document.getElementById('coachDatePicker');
   if (!picker.value) picker.value = todayKey();
   const date = picker.value;
@@ -1297,7 +1299,7 @@ function renderCoach() {
   renderTeamRoster(date);
   renderAttentionPanel();
   renderAdminHabits();
-  renderAdminPlayers();
+  renderJugadoresTab();
 
   contentEl.scrollTop = scrollY;
 }
@@ -1390,256 +1392,423 @@ function buildHabitScheduleGrid(p) {
   return wrap;
 }
 
-function buildPlayerAdminCard(p) {
-    const assignedAnyDay = new Set();
-    WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
+function buildPlayerSummarySubtab(p, date) {
+  const wrap = document.createElement('div');
 
-    const card = document.createElement('div');
-    card.className = 'player-admin-card';
+  const myHabits = habitsForOnDate(p, date);
+  const rec = (state.records[date] && state.records[date][p.id]) || {};
 
-    const head = document.createElement('div');
-    head.className = 'player-admin-head';
+  const dayTitle = document.createElement('div');
+  dayTitle.className = 'hint-text';
+  dayTitle.style.margin = '0 0 8px';
+  dayTitle.textContent = `Hábitos del ${formatDateLabel(date)}`;
+  wrap.appendChild(dayTitle);
 
-    const infoSpan = document.createElement('span');
-    infoSpan.className = 'flex1';
-    const nameDiv = document.createElement('div');
-    const avatarBtn = document.createElement('span');
-    avatarBtn.innerHTML = avatarThumbHtml(p);
-    avatarBtn.style.cursor = 'pointer';
-    avatarBtn.title = 'Cambiar foto';
-    const avatarFileInput = document.createElement('input');
-    avatarFileInput.type = 'file';
-    avatarFileInput.accept = 'image/*';
-    avatarFileInput.style.display = 'none';
-    const avatarErr = document.createElement('div');
-    avatarErr.className = 'hint-text';
-    avatarBtn.onclick = () => avatarFileInput.click();
-    avatarFileInput.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (file) await uploadAvatarForPlayer(p, file, avatarErr);
-    };
-    nameDiv.appendChild(avatarBtn);
-    nameDiv.appendChild(document.createTextNode(p.name));
-    nameDiv.appendChild(avatarFileInput);
-    infoSpan.appendChild(nameDiv);
-    infoSpan.appendChild(avatarErr);
-
-    if (editingPlayerEmail === p.id) {
-      const editRow = document.createElement('div');
-      editRow.className = 'inline-edit-row';
-      const emailInput = document.createElement('input');
-      emailInput.type = 'email';
-      emailInput.value = p.email || '';
-      emailInput.placeholder = 'email@ejemplo.com';
-      const saveBtn = document.createElement('button');
-      saveBtn.className = 'primary';
-      saveBtn.textContent = 'Guardar';
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'ghost';
-      cancelBtn.textContent = 'Cancelar';
-      saveBtn.onclick = async () => {
-        const norm = normalizeEmail(emailInput.value);
-        if (!norm) {
-          playerEmailEditError = 'Introduce un email.';
-          renderCoach();
-          return;
-        }
-        const { error } = await supabase.from('players').update({ email: norm }).eq('id', p.id);
-        if (error) {
-          playerEmailEditError = error.code === '23505' ? 'Ese email ya está en uso.' : 'No se pudo actualizar.';
-          renderCoach();
-          return;
-        }
-        editingPlayerEmail = null;
-        playerEmailEditError = '';
-        await refreshAndRender();
-      };
-      cancelBtn.onclick = () => {
-        editingPlayerEmail = null;
-        playerEmailEditError = '';
-        renderCoach();
-      };
-      editRow.appendChild(emailInput);
-      editRow.appendChild(saveBtn);
-      editRow.appendChild(cancelBtn);
-      infoSpan.appendChild(editRow);
-      if (playerEmailEditError) {
-        const errDiv = document.createElement('div');
-        errDiv.className = 'hint-text';
-        errDiv.textContent = playerEmailEditError;
-        infoSpan.appendChild(errDiv);
-      }
-    } else {
-      const emailDiv = document.createElement('div');
-      emailDiv.className = 'player-email';
-      if (p.authId) {
-        emailDiv.innerHTML = `${p.email} · <span style="color:var(--gold)">✅ cuenta activa</span>`;
-      } else {
-        emailDiv.textContent = `${p.email} · aún no se ha registrado`;
-      }
-      infoSpan.appendChild(emailDiv);
-    }
-    head.appendChild(infoSpan);
-
-    if (editingPlayerEmail !== p.id) {
-      const countSpan = document.createElement('span');
-      countSpan.className = 'assigned-count';
-      countSpan.textContent = `${assignedAnyDay.size}/${state.habits.length} hábitos`;
-      head.appendChild(countSpan);
-
-      if (!p.authId) {
-        const editEmailBtn = document.createElement('button');
-        editEmailBtn.className = 'ghost';
-        editEmailBtn.textContent = 'Editar email';
-        editEmailBtn.onclick = () => {
-          editingPlayerEmail = p.id;
-          playerEmailEditError = '';
-          renderCoach();
-        };
-        head.appendChild(editEmailBtn);
-      }
-
-      const delBtn = document.createElement('button');
-      delBtn.className = 'danger';
-      delBtn.textContent = 'Eliminar';
-      delBtn.onclick = async () => {
-        await supabase.from('players').delete().eq('id', p.id);
-        if (selectedAdminPlayerId === p.id) selectedAdminPlayerId = null;
-        await refreshAndRender();
-      };
-      head.appendChild(delBtn);
-    }
-    card.appendChild(head);
-
-    const gridTitle = document.createElement('div');
-    gridTitle.className = 'hint-text';
-    gridTitle.style.margin = '10px 0 6px';
-    gridTitle.textContent = 'Hábitos, días y avisos';
-    card.appendChild(gridTitle);
-    card.appendChild(buildHabitScheduleGrid(p));
-
-    const fastingTitle = document.createElement('div');
-    fastingTitle.className = 'hint-text';
-    fastingTitle.style.margin = '16px 0 6px';
-    fastingTitle.textContent = 'Objetivo de ayuno (para este jugador)';
-    card.appendChild(fastingTitle);
-
-    const fastingRow = document.createElement('div');
-    fastingRow.className = 'admin-row';
-    const fastingLabel = document.createElement('div');
-    fastingLabel.className = 'admin-row-head';
-    fastingLabel.innerHTML = `<span>⏳</span><span class="flex1">${p.fasting.activeStart ? 'Ayuno en curso' : 'Próximo ayuno'}</span>`;
-    fastingRow.appendChild(fastingLabel);
-
-    const fastingControls = document.createElement('div');
-    fastingControls.className = 'admin-row-controls';
-    const fastingGoalSelect = document.createElement('select');
-    [12, 14, 16, 18, 20, 24].forEach(hrs => {
-      const opt = document.createElement('option');
-      opt.value = hrs;
-      opt.textContent = `${hrs}h`;
-      if (hrs === p.fasting.goalHours) opt.selected = true;
-      fastingGoalSelect.appendChild(opt);
+  if (myHabits.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'Este jugador no tiene hábitos asignados este día.';
+    wrap.appendChild(empty);
+  } else {
+    const list = document.createElement('div');
+    list.className = 'admin-list';
+    myHabits.forEach(h => {
+      const answer = rec[h.id];
+      const mark = answer === true ? '✓' : answer === false ? '✗' : '–';
+      const cls = answer === true ? 'cell-ok' : answer === false ? 'cell-bad' : 'cell-no';
+      const row = document.createElement('div');
+      row.className = 'detail-habit-row';
+      row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${cls}">${mark}</span>`;
+      list.appendChild(row);
     });
-    const fastingErr = document.createElement('div');
-    fastingErr.className = 'hint-text';
-    fastingGoalSelect.onchange = async () => {
-      fastingErr.textContent = '';
-      const { error } = await supabase.from('fasting_sessions').upsert(
-        { player_id: p.id, goal_hours: parseInt(fastingGoalSelect.value, 10) },
-        { onConflict: 'player_id' }
+    wrap.appendChild(list);
+  }
+
+  const lines = [];
+  if (p.fasting.activeStart && date === todayKey()) {
+    const elapsedH = ((Date.now() - new Date(p.fasting.activeStart).getTime()) / 3600000).toFixed(1);
+    lines.push(`🕐 Ayuno en curso: ${elapsedH}h (objetivo ${p.fasting.goalHours}h)`);
+  }
+  const histEntry = p.fasting.history.find(h => h.date === date);
+  if (histEntry) lines.push(`✅ Ayuno completado ese día: ${histEntry.hours}h`);
+  if (p.weightLog[date] !== undefined) lines.push(`⚖️ Peso: ${p.weightLog[date]}kg`);
+  if (lines.length > 0) {
+    const info = document.createElement('div');
+    info.className = 'hint-text';
+    info.style.margin = '10px 0 0';
+    info.innerHTML = lines.join('<br>');
+    wrap.appendChild(info);
+  }
+
+  const summary = computeWeeklySummary(p);
+  const weekTitle = document.createElement('div');
+  weekTitle.className = 'section-title';
+  weekTitle.style.margin = '20px 0 8px';
+  weekTitle.textContent = `Esta semana (${summary.weekStartLabel} – ${summary.weekEndLabel})`;
+  wrap.appendChild(weekTitle);
+
+  const weekHero = document.createElement('div');
+  weekHero.className = 'card stat-hero';
+  weekHero.style.margin = '0 0 14px';
+  weekHero.innerHTML = `<div class="stat-hero-value display mono">${summary.pct === null ? '–' : summary.pct + '%'}</div><div class="stat-hero-label">cumplimiento esta semana</div>`;
+  wrap.appendChild(weekHero);
+
+  const chartsTitle1 = document.createElement('div');
+  chartsTitle1.className = 'section-title';
+  chartsTitle1.style.margin = '20px 0 6px';
+  chartsTitle1.textContent = `Peso · 7 días hasta ${formatDateLabel(date)}`;
+  wrap.appendChild(chartsTitle1);
+  const weightCard = document.createElement('div');
+  weightCard.className = 'card';
+  weightCard.innerHTML = weightChartHtml(p, date);
+  wrap.appendChild(weightCard);
+
+  const chartsTitle2 = document.createElement('div');
+  chartsTitle2.className = 'section-title';
+  chartsTitle2.style.margin = '20px 0 6px';
+  chartsTitle2.textContent = `Ayuno · 7 días hasta ${formatDateLabel(date)}`;
+  wrap.appendChild(chartsTitle2);
+  const fastCard = document.createElement('div');
+  fastCard.className = 'card';
+  fastCard.innerHTML = fastingChartHtml(p, date);
+  wrap.appendChild(fastCard);
+
+  return wrap;
+}
+
+function buildHabitsSubtab(p) {
+  const wrap = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'hint-text';
+  title.style.margin = '0 0 8px';
+  title.textContent = 'Qué días tiene cada hábito, a qué hora y si avisa.';
+  wrap.appendChild(title);
+  wrap.appendChild(buildHabitScheduleGrid(p));
+  return wrap;
+}
+
+function buildFastingSubtab(p) {
+  const wrap = document.createElement('div');
+
+  const row = document.createElement('div');
+  row.className = 'admin-row';
+  const label = document.createElement('div');
+  label.className = 'admin-row-head';
+  label.innerHTML = `<span>⏳</span><span class="flex1">${p.fasting.activeStart ? 'Ayuno en curso' : 'Próximo ayuno'}</span>`;
+  row.appendChild(label);
+
+  const controls = document.createElement('div');
+  controls.className = 'admin-row-controls';
+  const select = document.createElement('select');
+  [12, 14, 16, 18, 20, 24].forEach(hrs => {
+    const opt = document.createElement('option');
+    opt.value = hrs;
+    opt.textContent = `${hrs}h`;
+    if (hrs === p.fasting.goalHours) opt.selected = true;
+    select.appendChild(opt);
+  });
+  const err = document.createElement('div');
+  err.className = 'hint-text';
+  select.onchange = async () => {
+    err.textContent = '';
+    const { error } = await supabase.from('fasting_sessions').upsert(
+      { player_id: p.id, goal_hours: parseInt(select.value, 10) },
+      { onConflict: 'player_id' }
+    );
+    if (error) {
+      err.textContent = 'No se pudo guardar: ' + (error.message || 'error desconocido');
+      return;
+    }
+    await refreshAndRender();
+  };
+  controls.appendChild(select);
+  row.appendChild(controls);
+  wrap.appendChild(row);
+  wrap.appendChild(err);
+
+  const info = document.createElement('p');
+  info.className = 'hint-text';
+  if (p.fasting.activeStart) {
+    const elapsedH = ((Date.now() - new Date(p.fasting.activeStart).getTime()) / 3600000).toFixed(1);
+    info.textContent = `Empezó hace ${elapsedH}h.`;
+    wrap.appendChild(info);
+  } else if (p.fasting.history.length > 0) {
+    const last = p.fasting.history[p.fasting.history.length - 1];
+    info.textContent = `Último ayuno: ${last.hours}h (${formatDateLabel(last.date)}).`;
+    wrap.appendChild(info);
+  }
+  return wrap;
+}
+
+function buildNutritionSubtab(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'admin-list';
+  NUTRITION_CATEGORIES.forEach(cat => {
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    row.style.flexDirection = 'column';
+    row.style.alignItems = 'stretch';
+
+    const label = document.createElement('div');
+    label.className = 'admin-row-head';
+    label.innerHTML = `<span>${cat.emoji}</span><span class="flex1">${cat.label}</span>`;
+    row.appendChild(label);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'nutrition-tip-input';
+    textarea.rows = 2;
+    textarea.placeholder = `Tip de ${cat.label.toLowerCase()}...`;
+    textarea.value = p.nutritionTips[cat.key] || '';
+    const tipErr = document.createElement('div');
+    tipErr.className = 'hint-text';
+    textarea.onchange = async () => {
+      tipErr.textContent = '';
+      const { error } = await supabase.from('player_nutrition_tips').upsert(
+        { player_id: p.id, category: cat.key, tip: textarea.value.trim() || null },
+        { onConflict: 'player_id,category' }
       );
       if (error) {
-        fastingErr.textContent = 'No se pudo guardar: ' + (error.message || 'error desconocido');
+        tipErr.textContent = 'No se pudo guardar: ' + (error.message || 'error desconocido');
         return;
       }
       await refreshAndRender();
     };
-    fastingControls.appendChild(fastingGoalSelect);
-    fastingRow.appendChild(fastingControls);
-    card.appendChild(fastingRow);
-    card.appendChild(fastingErr);
+    row.appendChild(textarea);
+    row.appendChild(tipErr);
 
-    const nutritionTitle = document.createElement('div');
-    nutritionTitle.className = 'hint-text';
-    nutritionTitle.style.margin = '16px 0 6px';
-    nutritionTitle.textContent = 'Tips nutricionales (para este jugador)';
-    card.appendChild(nutritionTitle);
-
-    const nutritionWrap = document.createElement('div');
-    nutritionWrap.className = 'admin-list';
-    NUTRITION_CATEGORIES.forEach(cat => {
-      const row = document.createElement('div');
-      row.className = 'admin-row';
-      row.style.flexDirection = 'column';
-      row.style.alignItems = 'stretch';
-
-      const label = document.createElement('div');
-      label.className = 'admin-row-head';
-      label.innerHTML = `<span>${cat.emoji}</span><span class="flex1">${cat.label}</span>`;
-      row.appendChild(label);
-
-      const textarea = document.createElement('textarea');
-      textarea.className = 'nutrition-tip-input';
-      textarea.rows = 2;
-      textarea.placeholder = `Tip de ${cat.label.toLowerCase()}...`;
-      textarea.value = p.nutritionTips[cat.key] || '';
-      const tipErr = document.createElement('div');
-      tipErr.className = 'hint-text';
-      textarea.onchange = async () => {
-        tipErr.textContent = '';
-        const { error } = await supabase.from('player_nutrition_tips').upsert(
-          { player_id: p.id, category: cat.key, tip: textarea.value.trim() || null },
-          { onConflict: 'player_id,category' }
-        );
-        if (error) {
-          tipErr.textContent = 'No se pudo guardar: ' + (error.message || 'error desconocido');
-          return;
-        }
-        await refreshAndRender();
-      };
-      row.appendChild(textarea);
-      row.appendChild(tipErr);
-
-      nutritionWrap.appendChild(row);
-    });
-    card.appendChild(nutritionWrap);
-
-    return card;
+    wrap.appendChild(row);
+  });
+  return wrap;
 }
 
-function renderAdminPlayers() {
-  const box = document.getElementById('adminPlayerList');
-  box.innerHTML = '';
-  if (state.players.length === 0) {
-    box.innerHTML = '<div style="color:var(--text-dim); font-size:0.85rem;">Sin jugadores todavía.</div>';
-    return;
-  }
-  state.players.forEach(p => {
-    const assignedAnyDay = new Set();
-    WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
-    const isOpen = selectedAdminPlayerId === p.id;
+function buildAccountSubtab(p) {
+  const wrap = document.createElement('div');
 
-    const row = document.createElement('div');
-    row.className = 'player-list-row' + (isOpen ? ' active' : '');
-    row.innerHTML = `
-      ${avatarThumbHtml(p)}
-      <div class="player-list-row-info">
-        <div class="player-list-row-name">${p.name}</div>
-        <div class="player-list-row-meta">${assignedAnyDay.size}/${state.habits.length} hábitos${p.authId ? '' : ' · sin registrar'}</div>
-      </div>
-      <span class="player-list-row-chevron">${isOpen ? '▴' : '▾'}</span>
-    `;
-    row.onclick = () => {
-      selectedAdminPlayerId = isOpen ? null : p.id;
+  const avatarRow = document.createElement('div');
+  avatarRow.className = 'account-avatar-row';
+  const avatarBtn = document.createElement('span');
+  avatarBtn.innerHTML = avatarThumbHtml(p);
+  avatarBtn.className = 'account-avatar-btn';
+  avatarBtn.title = 'Cambiar foto';
+  const avatarFileInput = document.createElement('input');
+  avatarFileInput.type = 'file';
+  avatarFileInput.accept = 'image/*';
+  avatarFileInput.style.display = 'none';
+  avatarBtn.onclick = () => avatarFileInput.click();
+  const avatarErr = document.createElement('div');
+  avatarErr.className = 'hint-text';
+  avatarErr.style.margin = '0';
+  avatarFileInput.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (file) await uploadAvatarForPlayer(p, file, avatarErr);
+  };
+  const avatarLabel = document.createElement('span');
+  avatarLabel.className = 'hint-text';
+  avatarLabel.style.margin = '0';
+  avatarLabel.textContent = 'Foto de perfil (clic para cambiar)';
+  avatarRow.appendChild(avatarBtn);
+  avatarRow.appendChild(avatarLabel);
+  avatarRow.appendChild(avatarFileInput);
+  wrap.appendChild(avatarRow);
+  wrap.appendChild(avatarErr);
+
+  const emailWrap = document.createElement('div');
+  emailWrap.style.marginTop = '14px';
+  if (editingPlayerEmail === p.id) {
+    const editRow = document.createElement('div');
+    editRow.className = 'inline-edit-row';
+    const emailInput = document.createElement('input');
+    emailInput.type = 'email';
+    emailInput.value = p.email || '';
+    emailInput.placeholder = 'email@ejemplo.com';
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'primary';
+    saveBtn.textContent = 'Guardar';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'ghost';
+    cancelBtn.textContent = 'Cancelar';
+    saveBtn.onclick = async () => {
+      const norm = normalizeEmail(emailInput.value);
+      if (!norm) {
+        playerEmailEditError = 'Introduce un email.';
+        renderCoach();
+        return;
+      }
+      const { error } = await supabase.from('players').update({ email: norm }).eq('id', p.id);
+      if (error) {
+        playerEmailEditError = error.code === '23505' ? 'Ese email ya está en uso.' : 'No se pudo actualizar.';
+        renderCoach();
+        return;
+      }
+      editingPlayerEmail = null;
+      playerEmailEditError = '';
+      await refreshAndRender();
+    };
+    cancelBtn.onclick = () => {
+      editingPlayerEmail = null;
+      playerEmailEditError = '';
       renderCoach();
     };
-    box.appendChild(row);
-
-    if (isOpen) {
-      box.appendChild(buildPlayerAdminCard(p));
+    editRow.appendChild(emailInput);
+    editRow.appendChild(saveBtn);
+    editRow.appendChild(cancelBtn);
+    emailWrap.appendChild(editRow);
+    if (playerEmailEditError) {
+      const errDiv = document.createElement('div');
+      errDiv.className = 'hint-text';
+      errDiv.textContent = playerEmailEditError;
+      emailWrap.appendChild(errDiv);
     }
+  } else {
+    const emailDiv = document.createElement('div');
+    emailDiv.className = 'player-email';
+    if (p.authId) {
+      emailDiv.innerHTML = `${p.email} · <span style="color:var(--gold)">✅ cuenta activa</span>`;
+    } else {
+      emailDiv.textContent = `${p.email} · aún no se ha registrado`;
+    }
+    emailWrap.appendChild(emailDiv);
+    if (!p.authId) {
+      const editEmailBtn = document.createElement('button');
+      editEmailBtn.className = 'ghost';
+      editEmailBtn.textContent = 'Editar email';
+      editEmailBtn.style.marginTop = '8px';
+      editEmailBtn.onclick = () => {
+        editingPlayerEmail = p.id;
+        playerEmailEditError = '';
+        renderCoach();
+      };
+      emailWrap.appendChild(editEmailBtn);
+    }
+  }
+  wrap.appendChild(emailWrap);
+
+  const dangerTitle = document.createElement('div');
+  dangerTitle.className = 'section-title';
+  dangerTitle.style.margin = '26px 0 8px';
+  dangerTitle.textContent = 'Zona de peligro';
+  wrap.appendChild(dangerTitle);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'danger';
+  delBtn.textContent = 'Eliminar jugador';
+  delBtn.onclick = async () => {
+    await supabase.from('players').delete().eq('id', p.id);
+    if (selectedPlayerId === p.id) selectedPlayerId = null;
+    await refreshAndRender();
+  };
+  wrap.appendChild(delBtn);
+
+  return wrap;
+}
+
+const PLAYER_SUBTABS = [
+  { key: 'resumen', label: 'Resumen' },
+  { key: 'habitos', label: 'Hábitos y horarios' },
+  { key: 'ayuno', label: 'Ayuno' },
+  { key: 'nutricion', label: 'Nutrición' },
+  { key: 'cuenta', label: 'Cuenta' },
+];
+
+function renderPlayerDetailPane() {
+  const pane = document.getElementById('playerDetailPane');
+  const player = selectedPlayerId ? getPlayerById(selectedPlayerId) : null;
+
+  if (!player) {
+    const pcts = state.players.map(p => computeWeeklySummary(p).pct).filter(pct => pct !== null);
+    const avgPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+    pane.innerHTML = `
+      <div class="card empty-state">
+        <p>${state.players.length === 0 ? 'Añade tu primer jugador para empezar.' : 'Elige un jugador de la lista para ver su ficha.'}</p>
+        ${state.players.length > 0 ? `<p class="hint-text">${state.players.length} jugadores en el equipo · cumplimiento medio esta semana: ${avgPct === null ? '–' : avgPct + '%'}</p>` : ''}
+      </div>
+    `;
+    return;
+  }
+
+  const picker = document.getElementById('coachDatePicker');
+  const date = picker.value || todayKey();
+  const myHabits = habitsForOnDate(player, date);
+  const rec = (state.records[date] && state.records[date][player.id]) || {};
+  const done = myHabits.filter(h => rec[h.id]).length;
+  const dayPct = myHabits.length ? Math.round((done / myHabits.length) * 100) : null;
+
+  pane.innerHTML = `
+    <div class="card player-detail-card">
+      <div class="player-detail-head">
+        ${avatarThumbHtml(player)}
+        <span class="flex1">
+          <div class="player-detail-name">${player.name}</div>
+          <div class="player-email">${player.authId ? '✅ cuenta activa' : 'aún no se ha registrado'}</div>
+        </span>
+        ${pctBadgeHtml(dayPct)}
+      </div>
+      <div class="subtab-bar" id="playerSubtabBar"></div>
+      <div id="playerSubtabContent"></div>
+    </div>
+  `;
+
+  const bar = document.getElementById('playerSubtabBar');
+  PLAYER_SUBTABS.forEach(st => {
+    const btn = document.createElement('button');
+    btn.className = 'subtab-btn' + (currentPlayerDetailSubtab === st.key ? ' active' : '');
+    btn.textContent = st.label;
+    btn.onclick = () => {
+      currentPlayerDetailSubtab = st.key;
+      renderPlayerDetailPane();
+    };
+    bar.appendChild(btn);
   });
+
+  const content = document.getElementById('playerSubtabContent');
+  content.innerHTML = '';
+  let built;
+  if (currentPlayerDetailSubtab === 'habitos') built = buildHabitsSubtab(player);
+  else if (currentPlayerDetailSubtab === 'ayuno') built = buildFastingSubtab(player);
+  else if (currentPlayerDetailSubtab === 'nutricion') built = buildNutritionSubtab(player);
+  else if (currentPlayerDetailSubtab === 'cuenta') built = buildAccountSubtab(player);
+  else built = buildPlayerSummarySubtab(player, date);
+  content.appendChild(built);
+}
+
+function renderJugadoresTab() {
+  const listBox = document.getElementById('adminPlayerList');
+  const searchInput = document.getElementById('playerSearchInput');
+  const query = (searchInput.value || '').trim().toLowerCase();
+  const players = state.players.filter(p => !query || p.name.toLowerCase().includes(query));
+
+  listBox.innerHTML = '';
+  if (state.players.length === 0) {
+    listBox.innerHTML = '<div class="hint-text" style="margin:0">Sin jugadores todavía.</div>';
+  } else if (players.length === 0) {
+    listBox.innerHTML = '<div class="hint-text" style="margin:0">Ningún jugador coincide con la búsqueda.</div>';
+  } else {
+    players.forEach(p => {
+      const assignedAnyDay = new Set();
+      WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
+      const isSelected = selectedPlayerId === p.id;
+
+      const row = document.createElement('div');
+      row.className = 'player-list-row' + (isSelected ? ' active' : '');
+      row.innerHTML = `
+        ${avatarThumbHtml(p)}
+        <div class="player-list-row-info">
+          <div class="player-list-row-name">${p.name}</div>
+          <div class="player-list-row-meta">${assignedAnyDay.size}/${state.habits.length} hábitos${p.authId ? '' : ' · sin registrar'}</div>
+        </div>
+      `;
+      row.onclick = () => {
+        selectedPlayerId = p.id;
+        renderCoach();
+      };
+      listBox.appendChild(row);
+    });
+  }
+
+  document.getElementById('toggleAddPlayerBtn').style.display = addingNewPlayer ? 'none' : 'block';
+  document.getElementById('addPlayerForm').style.display = addingNewPlayer ? 'block' : 'none';
+
+  renderPlayerDetailPane();
 }
 
 async function addAdminPlayer() {
@@ -1660,6 +1829,7 @@ async function addAdminPlayer() {
   }
   nameInput.value = '';
   emailInput.value = '';
+  addingNewPlayer = false;
   await refreshAndRender();
 }
 
@@ -1847,6 +2017,19 @@ document.getElementById('coachDatePicker').addEventListener('change', () => {
 document.getElementById('adminAddPlayerBtn').addEventListener('click', addAdminPlayer);
 document.getElementById('adminNewPlayerEmailInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') addAdminPlayer();
+});
+document.getElementById('toggleAddPlayerBtn').addEventListener('click', () => {
+  addingNewPlayer = true;
+  renderCoach();
+  document.getElementById('adminNewPlayerInput').focus();
+});
+document.getElementById('cancelAddPlayerBtn').addEventListener('click', () => {
+  addingNewPlayer = false;
+  document.getElementById('adminAddPlayerError').textContent = '';
+  renderCoach();
+});
+document.getElementById('playerSearchInput').addEventListener('input', () => {
+  renderCoach();
 });
 
 document.getElementById('adminAddHabitBtn').addEventListener('click', addAdminHabit);

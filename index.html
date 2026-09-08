@@ -155,17 +155,32 @@
         </div>
 
         <div class="tab-content" data-tab="jugadores" id="tab-coach-jugadores">
-          <div class="section-title">Jugadores</div>
-          <div class="admin-list" id="adminPlayerList"></div>
-          <div class="section-title">Añadir jugador</div>
-          <div class="card">
-            <p class="hint-text" style="margin-top:0">Añade con su nombre y email; se vincula solo cuando se registre con ese email.</p>
-            <div class="field-row">
-              <input type="text" id="adminNewPlayerInput" placeholder="Nombre del jugador">
-              <input type="email" id="adminNewPlayerEmailInput" placeholder="Email del jugador">
-              <button class="primary" id="adminAddPlayerBtn">Añadir jugador</button>
+          <div class="jugadores-layout">
+            <div class="jugadores-list-col">
+              <div class="field-row" style="margin-top:0">
+                <input type="search" id="playerSearchInput" placeholder="Buscar jugador...">
+              </div>
+              <div class="admin-list" id="adminPlayerList"></div>
+
+              <button class="ghost" id="toggleAddPlayerBtn" style="width:100%; margin-top:4px;">+ Nuevo jugador</button>
+              <div class="card" id="addPlayerForm" style="display:none; margin-top:8px;">
+                <p class="hint-text" style="margin-top:0">Añade con su nombre y email; se vincula solo cuando se registre con ese email.</p>
+                <div class="field-row" style="margin-top:0">
+                  <input type="text" id="adminNewPlayerInput" placeholder="Nombre del jugador">
+                </div>
+                <div class="field-row">
+                  <input type="email" id="adminNewPlayerEmailInput" placeholder="Email del jugador">
+                </div>
+                <div class="field-row">
+                  <button class="primary" id="adminAddPlayerBtn">Añadir jugador</button>
+                  <button class="ghost" id="cancelAddPlayerBtn">Cancelar</button>
+                </div>
+                <p class="hint-text" id="adminAddPlayerError"></p>
+              </div>
             </div>
-            <p class="hint-text" id="adminAddPlayerError"></p>
+            <div class="jugadores-detail-col">
+              <div id="playerDetailPane"></div>
+            </div>
           </div>
         </div>
 

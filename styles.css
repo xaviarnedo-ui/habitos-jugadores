@@ -844,28 +844,57 @@ input[type="time"].schedule-time-input {
 }
 .player-list-row-chevron { color: var(--ink-soft); font-size: 0.9rem; flex-shrink: 0; }
 
-/* ---------- Player admin card (assignment editor) ---------- */
+/* ---------- Jugadores: lista + ficha de detalle ---------- */
 
-.player-admin-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 10px;
-}
-.player-admin-card .player-admin-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.player-admin-card .player-admin-head .flex1 { font-weight: 700; }
+.jugadores-layout { display: flex; flex-direction: column; gap: 16px; }
+.jugadores-list-col { display: flex; flex-direction: column; }
+.jugadores-detail-col { min-width: 0; }
+
+.player-detail-card { padding: 16px; }
+.player-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.player-detail-head .flex1 { min-width: 0; }
+.player-detail-name { font-weight: 800; font-size: 1.05rem; }
 .player-email {
   font-weight: 400;
   font-size: 0.78rem;
   color: var(--ink-soft);
   margin-top: 2px;
 }
+
+.subtab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+.subtab-btn {
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.subtab-btn:hover { border-color: var(--blue); color: var(--ink); }
+.subtab-btn.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+.account-avatar-row { display: flex; align-items: center; gap: 12px; }
+.account-avatar-btn { cursor: pointer; }
+.account-avatar-btn .avatar-thumb { width: 40px; height: 40px; font-size: 0.85rem; }
+
+.inline-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.inline-edit-row input { min-width: 160px; padding: 6px 10px; font-size: 0.85rem; }
+.inline-edit-row button { padding: 6px 10px; font-size: 0.8rem; }
 .inline-edit-row {
   display: flex;
   flex-wrap: wrap;
@@ -1073,6 +1102,14 @@ input[type="time"].schedule-time-input {
 
   .coach-resumen-header { flex-direction: row; }
   .coach-resumen-header .date-field { flex: 0 0 220px; }
+
+  /* Jugadores: la pestaña de detalle necesita más sitio que el resto (920px
+     se queda corto para lista + ficha lado a lado), así que solo esta
+     pestaña amplía el ancho del contenido. */
+  .content.coach-wide { max-width: 1180px; }
+  .jugadores-layout { flex-direction: row; align-items: flex-start; gap: 24px; }
+  .jugadores-list-col { flex: 0 0 280px; position: sticky; top: calc(90px + env(safe-area-inset-top, 0px) + 16px); }
+  .jugadores-detail-col { flex: 1; }
 
   /* Collapsible sidebar */
   .sidebar-toggle {
