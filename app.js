@@ -127,7 +127,6 @@ let state = {
   records: {}, // records[date][playerId][habitId] = true
   session: null, // { type: 'coach', email } | { type: 'player', playerId }
 };
-let selectedDetailPlayer = null; // player id
 let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
 let editingHabitId = null; // habit id, Hábitos tab
@@ -138,10 +137,10 @@ let editingFastingStart = false; // player's own Hoy tab
 let confirmingFastingEnd = false; // player's own Hoy tab
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
-let currentCoachTab = 'equipo'; // 'equipo' | 'habitos' | 'jugadores' | 'ajustes'
+let currentCoachTab = 'resumen'; // 'resumen' | 'habitos' | 'jugadores' | 'ajustes'
 
 const PLAYER_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', tips: 'TIPS', perfil: 'PERFIL' };
-const COACH_TAB_TITLES = { equipo: 'EQUIPO', habitos: 'HÁBITOS', jugadores: 'JUGADORES', ajustes: 'AJUSTES' };
+const COACH_TAB_TITLES = { resumen: 'RESUMEN', habitos: 'HÁBITOS', jugadores: 'JUGADORES', ajustes: 'AJUSTES' };
 
 function showTab(role, tabName) {
   const prefix = role === 'player' ? 'tab-player-' : 'tab-coach-';
@@ -335,6 +334,8 @@ function computeWeeklySummary(player) {
 
   return {
     perHabit,
+    totalAssigned,
+    totalDone,
     pct: totalAssigned ? Math.round((totalDone / totalAssigned) * 100) : null,
     weekStartLabel: formatDateLabel(monday),
     weekEndLabel: formatDateLabel(today),
@@ -1183,6 +1184,103 @@ function renderWeekDayDetail(player) {
 
 /* ---------- COACH ---------- */
 
+const LOW_COMPLETION_THRESHOLD = 50; // %, por debajo de esto y con muestra suficiente, alerta
+
+function pctBadgeHtml(pct) {
+  return `<span class="pct-badge ${pctTierClass(pct)}">${pct === null ? '–' : pct + '%'}</span>`;
+}
+
+function openPlayerDetail(playerId) {
+  currentCoachTab = 'jugadores';
+  selectedAdminPlayerId = playerId;
+  document.getElementById('content').scrollTop = 0;
+  render();
+}
+
+function computeCoachAlerts() {
+  const alerts = [];
+  state.players.forEach(p => {
+    if (!p.authId) {
+      alerts.push({ playerId: p.id, playerName: p.name, icon: '✉️', message: 'Todavía no se ha registrado en la app.' });
+    }
+    const assignedAnyDay = new Set();
+    WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
+    if (assignedAnyDay.size === 0) {
+      alerts.push({ playerId: p.id, playerName: p.name, icon: '📭', message: 'No tiene ningún hábito asignado.' });
+    } else {
+      const summary = computeWeeklySummary(p);
+      if (summary.totalAssigned >= 3 && summary.pct !== null && summary.pct < LOW_COMPLETION_THRESHOLD) {
+        alerts.push({ playerId: p.id, playerName: p.name, icon: '📉', message: `Cumplimiento bajo esta semana: ${summary.pct}%.` });
+      }
+    }
+  });
+  return alerts;
+}
+
+function renderAttentionPanel() {
+  const box = document.getElementById('attentionPanel');
+  const alerts = computeCoachAlerts();
+  if (alerts.length === 0) {
+    box.innerHTML = '<div class="note-row good">✅ Todo en orden — sin avisos pendientes.</div>';
+    return;
+  }
+  box.innerHTML = alerts.map((a, i) =>
+    `<div class="alert-row" data-idx="${i}"><span class="alert-row-icon">${a.icon}</span><span class="alert-row-text"><strong>${a.playerName}</strong> · ${a.message}</span><span class="alert-row-chevron">›</span></div>`
+  ).join('');
+  box.querySelectorAll('.alert-row').forEach(row => {
+    const alert = alerts[Number(row.dataset.idx)];
+    row.onclick = () => openPlayerDetail(alert.playerId);
+  });
+}
+
+function renderTeamRoster(date) {
+  const wrap = document.getElementById('dashTableWrap');
+  let teamDoneSum = 0;
+  let teamPossible = 0;
+
+  if (state.players.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">Todavía no hay jugadores añadidos.</div>';
+    document.getElementById('teamPct').textContent = '—';
+    return;
+  }
+
+  wrap.innerHTML = '';
+  state.players.forEach(p => {
+    const myHabits = habitsForOnDate(p, date);
+    const rec = (state.records[date] && state.records[date][p.id]) || {};
+    const done = myHabits.filter(h => rec[h.id]).length;
+    const total = myHabits.length;
+    const pct = total ? Math.round((done / total) * 100) : null;
+    if (total > 0) {
+      teamDoneSum += done;
+      teamPossible += total;
+    }
+    const weight = p.weightLog[date];
+    const energy = p.wellness[date] && p.wellness[date].energy;
+    const fasted = p.fasting.history.some(h => h.date === date);
+
+    const row = document.createElement('div');
+    row.className = 'team-row';
+    row.innerHTML = `
+      ${avatarThumbHtml(p)}
+      <div class="team-row-info">
+        <div class="team-row-name">${p.name}</div>
+        <div class="team-row-stats">
+          <span>⚖️ ${weight !== undefined ? weight + 'kg' : '–'}</span>
+          <span>⚡ ${energy ? energy + '/5' : '–'}</span>
+          <span>${fasted ? '🕐 ayuno ✓' : '🕐 ayuno –'}</span>
+        </div>
+      </div>
+      ${pctBadgeHtml(pct)}
+    `;
+    row.onclick = () => openPlayerDetail(p.id);
+    wrap.appendChild(row);
+  });
+
+  const teamPct = teamPossible ? Math.round((teamDoneSum / teamPossible) * 100) : 0;
+  document.getElementById('teamPct').textContent = teamPossible ? teamPct + '%' : '—';
+}
+
 function renderCoach() {
   const contentEl = document.getElementById('content');
   const scrollY = contentEl.scrollTop;
@@ -1191,103 +1289,23 @@ function renderCoach() {
   const date = picker.value;
 
   document.getElementById('coachEmailLabel').textContent = state.session.email || '—';
+  const unregisteredCount = state.players.filter(p => !p.authId).length;
+  document.getElementById('settingsPlayerCount').textContent = String(state.players.length);
+  document.getElementById('settingsUnregisteredCount').textContent = String(unregisteredCount);
+  document.getElementById('settingsHabitCount').textContent = String(state.habits.length);
 
-  let teamDoneSum = 0;
-  let teamPossible = 0;
-
-  const wrap = document.getElementById('dashTableWrap');
-
-  if (state.players.length === 0) {
-    wrap.innerHTML = '<div class="empty-state">Todavía no hay jugadores añadidos.</div>';
-    document.getElementById('teamPct').textContent = '—';
-  } else {
-    let html = '<table class="dash"><thead><tr><th style="text-align:left">Jugador</th><th>Peso</th><th>Energía</th><th>Ayuno</th><th>%</th></tr></thead><tbody>';
-
-    state.players.forEach(p => {
-      const myHabits = habitsForOnDate(p, date);
-      const rec = (state.records[date] && state.records[date][p.id]) || {};
-      const done = myHabits.filter(h => rec[h.id]).length;
-      const total = myHabits.length;
-      const pct = total ? Math.round((done / total) * 100) : null;
-      if (total > 0) {
-        teamDoneSum += done;
-        teamPossible += total;
-      }
-      const weight = p.weightLog[date];
-      const energy = p.wellness[date] && p.wellness[date].energy;
-      const fasted = p.fasting.history.some(h => h.date === date);
-      html += `<tr class="row-clickable" data-player="${p.id}"><td class="name-cell">${avatarThumbHtml(p)}${p.name}</td><td>${weight !== undefined ? weight + 'kg' : '–'}</td><td>${energy ? energy + '/5' : '–'}</td><td class="${fasted ? 'cell-ok' : 'cell-no'}">${fasted ? '✓' : '–'}</td><td>${pct === null ? '–' : pct + '%'}</td></tr>`;
-    });
-
-    html += '</tbody></table>';
-    wrap.innerHTML = html;
-
-    wrap.querySelectorAll('tr[data-player]').forEach(row => {
-      row.addEventListener('click', () => {
-        const id = row.getAttribute('data-player');
-        selectedDetailPlayer = selectedDetailPlayer === id ? null : id;
-        renderPlayerDetail(date);
-      });
-    });
-
-    const teamPct = teamPossible ? Math.round((teamDoneSum / teamPossible) * 100) : 0;
-    document.getElementById('teamPct').textContent = teamPossible ? teamPct + '%' : '—';
-  }
-
-  renderPlayerDetail(date);
+  renderTeamRoster(date);
+  renderAttentionPanel();
   renderAdminHabits();
   renderAdminPlayers();
 
   contentEl.scrollTop = scrollY;
 }
 
-function renderPlayerDetail(date) {
-  const panel = document.getElementById('playerDetailPanel');
-  if (!selectedDetailPlayer || !getPlayerById(selectedDetailPlayer)) {
-    panel.innerHTML = '';
-    return;
-  }
-  const player = getPlayerById(selectedDetailPlayer);
-  const myHabits = habitsForOnDate(player, date);
-  const rec = (state.records[date] && state.records[date][player.id]) || {};
-
-  let html = `<div class="detail-panel"><div class="detail-head"><strong>${avatarThumbHtml(player)}${player.name} — ${formatDateLabel(date)}</strong><button class="pill-link" id="closeDetailBtn">Cerrar</button></div>`;
-  if (myHabits.length === 0) {
-    html += '<div class="empty-state">Este jugador no tiene hábitos asignados este día.</div>';
-  } else {
-    myHabits.forEach(h => {
-      const answer = rec[h.id];
-      const mark = answer === true ? '✓' : answer === false ? '✗' : '–';
-      const cls = answer === true ? 'cell-ok' : answer === false ? 'cell-bad' : 'cell-no';
-      html += `<div class="detail-habit-row"><span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${cls}">${mark}</span></div>`;
-    });
-  }
-  const fastingLines = [];
-  if (player.fasting.activeStart && date === todayKey()) {
-    const elapsedH = ((Date.now() - new Date(player.fasting.activeStart).getTime()) / 3600000).toFixed(1);
-    fastingLines.push(`🕐 Ayuno en curso: ${elapsedH}h (objetivo ${player.fasting.goalHours}h)`);
-  }
-  const histEntry = player.fasting.history.find(h => h.date === date);
-  if (histEntry) fastingLines.push(`✅ Ayuno completado ese día: ${histEntry.hours}h`);
-  if (player.weightLog[date] !== undefined) {
-    fastingLines.push(`⚖️ Peso: ${player.weightLog[date]}kg`);
-  }
-  if (fastingLines.length > 0) {
-    html += `<div class="hint-text" style="margin-top:10px">${fastingLines.join('<br>')}</div>`;
-  }
-
-  html += `<div class="section-title" style="margin:14px 0 6px">Peso · últimos 7 días</div>${weightChartHtml(player)}`;
-  html += `<div class="section-title" style="margin:14px 0 6px">Ayuno · últimos 7 días</div>${fastingChartHtml(player)}`;
-
-  html += '</div>';
-  panel.innerHTML = html;
-  document.getElementById('closeDetailBtn').addEventListener('click', () => {
-    selectedDetailPlayer = null;
-    renderPlayerDetail(date);
-  });
-}
-
-function buildAssignGrid(p) {
+// Cuadrícula única por jugador: qué días tiene cada hábito asignado + a qué hora y
+// si avisa, todo en una fila por hábito (antes eran dos secciones separadas que
+// repetían el nombre de cada hábito dos veces).
+function buildHabitScheduleGrid(p) {
   const wrap = document.createElement('div');
   if (state.habits.length === 0) {
     wrap.className = 'hint-text';
@@ -1296,7 +1314,7 @@ function buildAssignGrid(p) {
   }
   wrap.className = 'assign-grid-wrap';
   const grid = document.createElement('div');
-  grid.className = 'assign-grid';
+  grid.className = 'assign-grid schedule-grid';
   grid.appendChild(document.createElement('div')); // corner
   WEEKDAYS.forEach(d => {
     const label = document.createElement('div');
@@ -1305,13 +1323,23 @@ function buildAssignGrid(p) {
     label.title = d.label;
     grid.appendChild(label);
   });
+  ['Hora', 'Aviso'].forEach(text => {
+    const label = document.createElement('div');
+    label.className = 'assign-grid-daylabel';
+    label.textContent = text;
+    grid.appendChild(label);
+  });
+
   state.habits.forEach(h => {
     const nameCell = document.createElement('div');
     nameCell.className = 'assign-grid-habit';
     nameCell.innerHTML = `<span>${h.emoji}</span><span>${h.label}</span>`;
     grid.appendChild(nameCell);
+
+    let assignedAnyDay = false;
     WEEKDAYS.forEach(d => {
       const assigned = (p.habitsByDay[d.key] || []).includes(h.id);
+      if (assigned) assignedAnyDay = true;
       const cell = document.createElement('button');
       cell.className = 'assign-cell' + (assigned ? ' checked' : '');
       cell.textContent = assigned ? '✓' : '';
@@ -1326,6 +1354,37 @@ function buildAssignGrid(p) {
       };
       grid.appendChild(cell);
     });
+
+    const settings = p.habitSettings[h.id] || {};
+
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.className = 'schedule-time-input';
+    timeInput.value = settings.timeOfDay ? settings.timeOfDay.slice(0, 5) : '';
+    timeInput.disabled = !assignedAnyDay;
+    timeInput.title = assignedAnyDay ? '' : 'Asigna este hábito algún día primero';
+    timeInput.onchange = async () => {
+      const time_of_day = timeInput.value || null;
+      const updates = { player_id: p.id, habit_id: h.id, time_of_day };
+      if (!time_of_day && settings.notifyEnabled) updates.notify_enabled = false;
+      await supabase.from('player_habit_settings').upsert(updates, { onConflict: 'player_id,habit_id' });
+      await refreshAndRender();
+    };
+    grid.appendChild(timeInput);
+
+    const notifyBtn = document.createElement('button');
+    notifyBtn.className = 'schedule-notify-btn ' + (settings.notifyEnabled ? 'primary' : 'ghost');
+    notifyBtn.textContent = settings.notifyEnabled ? '🔔' : '🔕';
+    notifyBtn.title = settings.timeOfDay ? (settings.notifyEnabled ? 'Aviso activado' : 'Activar aviso') : 'Pon una hora primero';
+    notifyBtn.disabled = !settings.timeOfDay;
+    notifyBtn.onclick = async () => {
+      await supabase.from('player_habit_settings').upsert(
+        { player_id: p.id, habit_id: h.id, notify_enabled: !settings.notifyEnabled },
+        { onConflict: 'player_id,habit_id' }
+      );
+      await refreshAndRender();
+    };
+    grid.appendChild(notifyBtn);
   });
   wrap.appendChild(grid);
   return wrap;
@@ -1445,7 +1504,6 @@ function buildPlayerAdminCard(p) {
       delBtn.textContent = 'Eliminar';
       delBtn.onclick = async () => {
         await supabase.from('players').delete().eq('id', p.id);
-        if (selectedDetailPlayer === p.id) selectedDetailPlayer = null;
         if (selectedAdminPlayerId === p.id) selectedAdminPlayerId = null;
         await refreshAndRender();
       };
@@ -1456,65 +1514,9 @@ function buildPlayerAdminCard(p) {
     const gridTitle = document.createElement('div');
     gridTitle.className = 'hint-text';
     gridTitle.style.margin = '10px 0 6px';
-    gridTitle.textContent = 'Hábitos asignados esta semana';
+    gridTitle.textContent = 'Hábitos, días y avisos';
     card.appendChild(gridTitle);
-    card.appendChild(buildAssignGrid(p));
-
-    const assignedHabits = state.habits.filter(h => assignedAnyDay.has(h.id));
-    if (assignedHabits.length > 0) {
-      const settingsTitle = document.createElement('div');
-      settingsTitle.className = 'hint-text';
-      settingsTitle.style.margin = '16px 0 6px';
-      settingsTitle.textContent = 'Hora y aviso por hábito (para este jugador)';
-      card.appendChild(settingsTitle);
-
-      const settingsWrap = document.createElement('div');
-      settingsWrap.className = 'admin-list';
-      assignedHabits.forEach(h => {
-        const settings = p.habitSettings[h.id] || {};
-        const row = document.createElement('div');
-        row.className = 'admin-row';
-
-        const head = document.createElement('div');
-        head.className = 'admin-row-head';
-        head.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
-        row.appendChild(head);
-
-        const controls = document.createElement('div');
-        controls.className = 'admin-row-controls';
-
-        const timeInput = document.createElement('input');
-        timeInput.type = 'time';
-        timeInput.value = settings.timeOfDay ? settings.timeOfDay.slice(0, 5) : '';
-        timeInput.style.flex = '0 0 110px';
-        timeInput.onchange = async () => {
-          const time_of_day = timeInput.value || null;
-          const updates = { player_id: p.id, habit_id: h.id, time_of_day };
-          if (!time_of_day && settings.notifyEnabled) updates.notify_enabled = false;
-          await supabase.from('player_habit_settings').upsert(updates, { onConflict: 'player_id,habit_id' });
-          await refreshAndRender();
-        };
-        controls.appendChild(timeInput);
-
-        const notifyBtn = document.createElement('button');
-        notifyBtn.className = settings.notifyEnabled ? 'primary' : 'ghost';
-        notifyBtn.textContent = settings.notifyEnabled ? '🔔' : '🔕';
-        notifyBtn.title = settings.timeOfDay ? (settings.notifyEnabled ? 'Aviso activado' : 'Activar aviso') : 'Pon una hora primero';
-        notifyBtn.disabled = !settings.timeOfDay;
-        notifyBtn.onclick = async () => {
-          await supabase.from('player_habit_settings').upsert(
-            { player_id: p.id, habit_id: h.id, notify_enabled: !settings.notifyEnabled },
-            { onConflict: 'player_id,habit_id' }
-          );
-          await refreshAndRender();
-        };
-        controls.appendChild(notifyBtn);
-
-        row.appendChild(controls);
-        settingsWrap.appendChild(row);
-      });
-      card.appendChild(settingsWrap);
-    }
+    card.appendChild(buildHabitScheduleGrid(p));
 
     const fastingTitle = document.createElement('div');
     fastingTitle.className = 'hint-text';
@@ -1766,9 +1768,10 @@ function renderAdminHabits() {
       return;
     }
 
+    const usageCount = state.players.filter(p => Object.values(p.habitsByDay).some(ids => ids.includes(h.id))).length;
     const head = document.createElement('div');
     head.className = 'admin-row-head';
-    head.innerHTML = `<span class="drag-handle" title="Arrastra para reordenar">⠿</span><span>${h.emoji}</span><span class="flex1">${h.label}</span>`;
+    head.innerHTML = `<span class="drag-handle" title="Arrastra para reordenar">⠿</span><span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="assigned-count">asignado a ${usageCount}/${state.players.length} jugadores</span>`;
     row.appendChild(head);
     head.querySelector('.drag-handle').addEventListener('pointerdown', e => startHabitDrag(e, row, box));
 
@@ -1838,7 +1841,6 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('coachDatePicker').addEventListener('change', () => {
-  selectedDetailPlayer = null;
   renderCoach();
 });
 

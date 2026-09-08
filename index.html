@@ -121,19 +121,24 @@
       <!-- COACH -->
       <section id="screen-coach" class="screen">
 
-        <div class="tab-content active" data-tab="equipo" id="tab-coach-equipo">
-          <div class="card date-field">
-            <label for="coachDatePicker" class="section-title" style="margin:0 0 8px">Fecha</label>
-            <input type="date" id="coachDatePicker">
+        <div class="tab-content active" data-tab="resumen" id="tab-coach-resumen">
+          <div class="coach-resumen-header">
+            <div class="card date-field">
+              <label for="coachDatePicker" class="section-title" style="margin:0 0 8px">Fecha</label>
+              <input type="date" id="coachDatePicker">
+            </div>
+
+            <div class="card stat-hero">
+              <div class="stat-hero-value display mono" id="teamPct">0%</div>
+              <div class="stat-hero-label">cumplimiento del equipo</div>
+            </div>
           </div>
 
-          <div class="card stat-hero">
-            <div class="stat-hero-value display mono" id="teamPct">0%</div>
-            <div class="stat-hero-label">cumplimiento del equipo</div>
-          </div>
+          <div class="section-title">Atención</div>
+          <div id="attentionPanel"></div>
 
-          <div id="dashTableWrap" class="table-wrap"></div>
-          <div id="playerDetailPanel"></div>
+          <div class="section-title">Jugadores</div>
+          <div id="dashTableWrap" class="admin-list"></div>
         </div>
 
         <div class="tab-content" data-tab="habitos" id="tab-coach-habitos">
@@ -172,6 +177,22 @@
               <strong id="coachEmailLabel"></strong>
             </div>
           </div>
+
+          <div class="section-title">Datos del equipo</div>
+          <div class="card">
+            <div class="settings-row">
+              <span class="flex1">Jugadores</span>
+              <strong id="settingsPlayerCount"></strong>
+            </div>
+            <div class="settings-row">
+              <span class="flex1">Sin registrar todavía</span>
+              <strong id="settingsUnregisteredCount"></strong>
+            </div>
+            <div class="settings-row">
+              <span class="flex1">Hábitos en la batería</span>
+              <strong id="settingsHabitCount"></strong>
+            </div>
+          </div>
         </div>
 
       </section>
@@ -186,7 +207,7 @@
     </nav>
 
     <nav class="bottomnav" id="bottomnavCoach" style="display:none">
-      <button class="nav-item active" data-tab="equipo"><span class="nav-icon">📋</span><span class="nav-label">Equipo</span></button>
+      <button class="nav-item active" data-tab="resumen"><span class="nav-icon">📊</span><span class="nav-label">Resumen</span></button>
       <button class="nav-item" data-tab="habitos"><span class="nav-icon">✅</span><span class="nav-label">Hábitos</span></button>
       <button class="nav-item" data-tab="jugadores"><span class="nav-icon">👥</span><span class="nav-label">Jugadores</span></button>
       <button class="nav-item" data-tab="ajustes"><span class="nav-icon">⚙️</span><span class="nav-label">Ajustes</span></button>

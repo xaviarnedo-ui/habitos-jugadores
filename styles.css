@@ -546,41 +546,64 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
 .week-day .pct.empty { background: transparent; color: var(--ink-soft); }
 .week-day.today { border-color: var(--navy); border-width: 2px; }
 
-/* ---------- Coach dashboard table ---------- */
+/* ---------- Resumen: cabecera, atención, lista del equipo ---------- */
 
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-table.dash {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: fixed;
+.coach-resumen-header { display: flex; flex-direction: column; gap: 14px; }
+.coach-resumen-header .date-field, .coach-resumen-header .stat-hero { margin: 0; flex: 1; }
+
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
 }
-table.dash th, table.dash td {
-  padding: 8px 4px;
-  text-align: center;
-  border-bottom: 1px solid var(--line);
-  font-size: 0.8rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.alert-row:hover { background: var(--gold-light); }
+.alert-row-icon { font-size: 1.1rem; flex-shrink: 0; }
+.alert-row-text { flex: 1; min-width: 0; }
+.alert-row-chevron { color: var(--ink-soft); flex-shrink: 0; }
+
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
 }
-table.dash th:nth-child(1), table.dash td:nth-child(1) { width: 30%; text-align: left; padding-left: 10px; }
-table.dash th:nth-child(2), table.dash td:nth-child(2) { width: 17%; }
-table.dash th:nth-child(3), table.dash td:nth-child(3) { width: 20%; }
-table.dash th:nth-child(4), table.dash td:nth-child(4) { width: 19%; }
-table.dash th:nth-child(5), table.dash td:nth-child(5) { width: 14%; }
-table.dash th {
-  color: var(--ink-soft);
+.team-row:hover { border-color: var(--blue); }
+.team-row-info { flex: 1; min-width: 0; }
+.team-row-name { font-weight: 700; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team-row-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.75rem; color: var(--ink-soft); margin-top: 2px; }
+
+.pct-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 4px 8px;
+  border-radius: 999px;
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 0.68rem;
-  background: var(--bg);
+  font-size: 0.82rem;
+  color: #fff;
+  background: var(--draw);
+  flex-shrink: 0;
 }
-table.dash td.name-cell { text-align: left; font-weight: 700; }
-table.dash tr:last-child td { border-bottom: none; }
+.pct-badge.win { background: var(--win); }
+.pct-badge.mid { background: var(--gold); color: #3a2c05; }
+.pct-badge.loss { background: var(--loss); }
+.pct-badge.empty { background: transparent; color: var(--ink-soft); }
+
 .cell-ok { color: var(--win); font-size: 1.1rem; }
 .cell-no { color: var(--ink-soft); opacity: 0.5; }
 .cell-bad { color: var(--loss); font-size: 1.1rem; }
-.total-cell { font-weight: 700; }
 
 /* ---------- Admin / list rows ---------- */
 
@@ -668,9 +691,31 @@ table.dash tr:last-child td { border-bottom: none; }
 .assign-cell:hover { border-color: var(--blue); }
 .assign-cell.checked { background: var(--navy); border-color: var(--navy); color: #fff; }
 
+/* Variante fusionada (asignación + hora + aviso) usada en la ficha de cada jugador */
+.assign-grid.schedule-grid { grid-template-columns: 140px repeat(7, 32px) 92px 40px; }
+input[type="time"].schedule-time-input {
+  width: 100%;
+  padding: 5px 6px;
+  font-size: 0.78rem;
+  border-radius: 8px;
+}
+.schedule-notify-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (min-width: 820px) {
   .assign-grid { grid-template-columns: minmax(160px, 1fr) repeat(7, 38px); width: auto; }
   .assign-cell { width: 34px; height: 34px; }
+  .assign-grid.schedule-grid { grid-template-columns: minmax(160px, 1fr) repeat(7, 38px) 110px 44px; }
+  .schedule-notify-btn { width: 34px; height: 34px; }
 }
 
 .settings-row {
@@ -679,6 +724,13 @@ table.dash tr:last-child td { border-bottom: none; }
   gap: 10px;
 }
 .settings-row .flex1 { flex: 1; color: var(--ink-soft); }
+.settings-row + .settings-row { margin-top: 10px; }
+
+/* El contador de uso por hábito solo se muestra con espacio de sobra (iPad/escritorio) */
+.admin-row-head .assigned-count { display: none; }
+@media (min-width: 820px) {
+  .admin-row-head .assigned-count { display: inline; white-space: nowrap; }
+}
 
 /* ---------- Fasting timer ---------- */
 
@@ -1018,6 +1070,9 @@ table.dash tr:last-child td { border-bottom: none; }
     max-width: 920px;
     margin: 0 auto;
   }
+
+  .coach-resumen-header { flex-direction: row; }
+  .coach-resumen-header .date-field { flex: 0 0 220px; }
 
   /* Collapsible sidebar */
   .sidebar-toggle {
