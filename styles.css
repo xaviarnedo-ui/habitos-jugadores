@@ -568,39 +568,6 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
 .alert-row-text { flex: 1; min-width: 0; }
 .alert-row-chevron { color: var(--ink-soft); flex-shrink: 0; }
 
-.team-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  cursor: pointer;
-}
-.team-row:hover { border-color: var(--blue); }
-.team-row-info { flex: 1; min-width: 0; }
-.team-row-name { font-weight: 700; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.team-row-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.75rem; color: var(--ink-soft); margin-top: 2px; }
-
-.pct-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 0.82rem;
-  color: #fff;
-  background: var(--draw);
-  flex-shrink: 0;
-}
-.pct-badge.win { background: var(--win); }
-.pct-badge.mid { background: var(--gold); color: #3a2c05; }
-.pct-badge.loss { background: var(--loss); }
-.pct-badge.empty { background: transparent; color: var(--ink-soft); }
-
 .cell-ok { color: var(--win); font-size: 1.1rem; }
 .cell-no { color: var(--ink-soft); opacity: 0.5; }
 .cell-bad { color: var(--loss); font-size: 1.1rem; }
@@ -844,44 +811,22 @@ input[type="time"].schedule-time-input {
 }
 .player-list-row-chevron { color: var(--ink-soft); font-size: 0.9rem; flex-shrink: 0; }
 
-/* ---------- Jugadores: lista + ficha de detalle ---------- */
+/* ---------- Acordeón de jugadores (Resumen, Hábitos, Tips) ---------- */
 
-.jugadores-layout { display: flex; flex-direction: column; gap: 16px; }
-.jugadores-list-col { display: flex; flex-direction: column; }
-.jugadores-detail-col { min-width: 0; }
-
-.player-detail-card { padding: 16px; }
-.player-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.player-detail-head .flex1 { min-width: 0; }
-.player-detail-name { font-weight: 800; font-size: 1.05rem; }
+.player-accordion-detail {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: -2px 0 8px;
+}
 .player-email {
   font-weight: 400;
   font-size: 0.78rem;
   color: var(--ink-soft);
   margin-top: 2px;
 }
-
-.subtab-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 12px;
-}
-.subtab-btn {
-  padding: 7px 13px;
-  border-radius: 999px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-  font-weight: 700;
-  font-size: 0.82rem;
-  font-family: inherit;
-  cursor: pointer;
-}
-.subtab-btn:hover { border-color: var(--blue); color: var(--ink); }
-.subtab-btn.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.panel-divider { height: 1px; background: var(--line); margin: 22px 0 18px; }
 
 .account-avatar-row { display: flex; align-items: center; gap: 12px; }
 .account-avatar-btn { cursor: pointer; }
@@ -1102,14 +1047,6 @@ input[type="time"].schedule-time-input {
 
   .coach-resumen-header { flex-direction: row; }
   .coach-resumen-header .date-field { flex: 0 0 220px; }
-
-  /* Jugadores: la pestaña de detalle necesita más sitio que el resto (920px
-     se queda corto para lista + ficha lado a lado), así que solo esta
-     pestaña amplía el ancho del contenido. */
-  .content.coach-wide { max-width: 1180px; }
-  .jugadores-layout { flex-direction: row; align-items: flex-start; gap: 24px; }
-  .jugadores-list-col { flex: 0 0 280px; position: sticky; top: calc(90px + env(safe-area-inset-top, 0px) + 16px); }
-  .jugadores-detail-col { flex: 1; }
 
   /* Collapsible sidebar */
   .sidebar-toggle {

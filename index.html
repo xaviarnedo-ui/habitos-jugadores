@@ -121,7 +121,7 @@
       <!-- COACH -->
       <section id="screen-coach" class="screen">
 
-        <div class="tab-content active" data-tab="resumen" id="tab-coach-resumen">
+        <div class="tab-content active" data-tab="inicio" id="tab-coach-inicio">
           <div class="coach-resumen-header">
             <div class="card date-field">
               <label for="coachDatePicker" class="section-title" style="margin:0 0 8px">Fecha</label>
@@ -136,14 +136,35 @@
 
           <div class="section-title">Atención</div>
           <div id="attentionPanel"></div>
+        </div>
 
+        <div class="tab-content" data-tab="resumen" id="tab-coach-resumen">
           <div class="section-title">Jugadores</div>
-          <div id="dashTableWrap" class="admin-list"></div>
+          <div class="field-row" style="margin-top:0">
+            <input type="search" id="resumenSearchInput" placeholder="Buscar jugador...">
+          </div>
+          <div class="admin-list" id="resumenPlayerList"></div>
+
+          <button class="ghost" id="toggleAddPlayerBtn" style="width:100%; margin-top:4px;">+ Nuevo jugador</button>
+          <div class="card" id="addPlayerForm" style="display:none; margin-top:8px;">
+            <p class="hint-text" style="margin-top:0">Añade con su nombre y email; se vincula solo cuando se registre con ese email.</p>
+            <div class="field-row" style="margin-top:0">
+              <input type="text" id="adminNewPlayerInput" placeholder="Nombre del jugador">
+            </div>
+            <div class="field-row">
+              <input type="email" id="adminNewPlayerEmailInput" placeholder="Email del jugador">
+            </div>
+            <div class="field-row">
+              <button class="primary" id="adminAddPlayerBtn">Añadir jugador</button>
+              <button class="ghost" id="cancelAddPlayerBtn">Cancelar</button>
+            </div>
+            <p class="hint-text" id="adminAddPlayerError"></p>
+          </div>
         </div>
 
         <div class="tab-content" data-tab="habitos" id="tab-coach-habitos">
           <div class="section-title">Batería de hábitos</div>
-          <p class="hint-text">El catálogo completo de hábitos disponibles. Luego eliges cuáles aplican a cada jugador. Arrastra ⠿ para reordenar.</p>
+          <p class="hint-text">El catálogo completo de hábitos disponibles. Arrastra ⠿ para reordenar.</p>
           <div class="card">
             <div class="admin-list" id="adminHabitList"></div>
             <div class="field-row">
@@ -152,36 +173,22 @@
               <button class="primary" id="adminAddHabitBtn">Añadir</button>
             </div>
           </div>
+
+          <div class="section-title">Asignar a jugadores</div>
+          <p class="hint-text">Elige un jugador para marcar qué días tiene cada hábito, a qué hora, si avisa, y su objetivo de ayuno.</p>
+          <div class="field-row" style="margin-top:0">
+            <input type="search" id="habitosSearchInput" placeholder="Buscar jugador...">
+          </div>
+          <div class="admin-list" id="habitosPlayerList"></div>
         </div>
 
-        <div class="tab-content" data-tab="jugadores" id="tab-coach-jugadores">
-          <div class="jugadores-layout">
-            <div class="jugadores-list-col">
-              <div class="field-row" style="margin-top:0">
-                <input type="search" id="playerSearchInput" placeholder="Buscar jugador...">
-              </div>
-              <div class="admin-list" id="adminPlayerList"></div>
-
-              <button class="ghost" id="toggleAddPlayerBtn" style="width:100%; margin-top:4px;">+ Nuevo jugador</button>
-              <div class="card" id="addPlayerForm" style="display:none; margin-top:8px;">
-                <p class="hint-text" style="margin-top:0">Añade con su nombre y email; se vincula solo cuando se registre con ese email.</p>
-                <div class="field-row" style="margin-top:0">
-                  <input type="text" id="adminNewPlayerInput" placeholder="Nombre del jugador">
-                </div>
-                <div class="field-row">
-                  <input type="email" id="adminNewPlayerEmailInput" placeholder="Email del jugador">
-                </div>
-                <div class="field-row">
-                  <button class="primary" id="adminAddPlayerBtn">Añadir jugador</button>
-                  <button class="ghost" id="cancelAddPlayerBtn">Cancelar</button>
-                </div>
-                <p class="hint-text" id="adminAddPlayerError"></p>
-              </div>
-            </div>
-            <div class="jugadores-detail-col">
-              <div id="playerDetailPane"></div>
-            </div>
+        <div class="tab-content" data-tab="tips" id="tab-coach-tips">
+          <div class="section-title">Tips nutricionales</div>
+          <p class="hint-text">Elige un jugador para escribir sus tips (desayuno, pre/post entreno, comida, merienda, cena).</p>
+          <div class="field-row" style="margin-top:0">
+            <input type="search" id="tipsSearchInput" placeholder="Buscar jugador...">
           </div>
+          <div class="admin-list" id="tipsPlayerList"></div>
         </div>
 
         <div class="tab-content" data-tab="ajustes" id="tab-coach-ajustes">
@@ -222,9 +229,10 @@
     </nav>
 
     <nav class="bottomnav" id="bottomnavCoach" style="display:none">
-      <button class="nav-item active" data-tab="resumen"><span class="nav-icon">📊</span><span class="nav-label">Resumen</span></button>
+      <button class="nav-item active" data-tab="inicio"><span class="nav-icon">🏠</span><span class="nav-label">Inicio</span></button>
+      <button class="nav-item" data-tab="resumen"><span class="nav-icon">📊</span><span class="nav-label">Resumen</span></button>
       <button class="nav-item" data-tab="habitos"><span class="nav-icon">✅</span><span class="nav-label">Hábitos</span></button>
-      <button class="nav-item" data-tab="jugadores"><span class="nav-icon">👥</span><span class="nav-label">Jugadores</span></button>
+      <button class="nav-item" data-tab="tips"><span class="nav-icon">🍎</span><span class="nav-label">Tips</span></button>
       <button class="nav-item" data-tab="ajustes"><span class="nav-icon">⚙️</span><span class="nav-label">Ajustes</span></button>
       <button class="sidebar-toggle" id="sidebarToggleBtn" title="Reducir menú">‹</button>
     </nav>
