@@ -19,13 +19,14 @@
 
     <header class="topbar">
       <div class="topbar-left">
-        <img src="assets/escudo.png" alt="Escudo del club" class="crest-sm">
+        <span id="topbarLeftIcon"><img src="assets/escudo.png" alt="Escudo del club" class="crest-sm"></span>
         <div class="topbar-titles">
           <div class="topbar-title display" id="topbarTitle">HÁBITOS</div>
           <div class="topbar-subtitle" id="topbarSubtitle">Atlético Baleares</div>
         </div>
       </div>
       <div class="topbar-actions">
+        <span id="topbarRightIcon" style="display:none"><img src="assets/escudo.png" alt="Escudo del club" class="crest-sm"></span>
         <button class="icon-btn" id="logoutBtn" title="Cerrar sesión" style="display:none">⏻</button>
       </div>
     </header>
@@ -89,10 +90,13 @@
             <div class="stat-hero-label">cumplimiento de hoy</div>
             <div class="progress-bar-track"><div class="progress-bar-fill" id="todayBarFill" style="width:0%"></div></div>
           </div>
-          <div class="habit-list" id="habitList"></div>
 
-          <div class="section-title">¿Cómo estás hoy?</div>
-          <div class="card" id="wellnessBox"></div>
+          <div id="wellnessSection">
+            <div class="section-title">¿Cómo estás hoy?</div>
+            <div class="card" id="wellnessBox"></div>
+          </div>
+
+          <div class="habit-list" id="habitList"></div>
 
           <div class="section-title">Peso de hoy</div>
           <div class="card" id="weightBox"></div>

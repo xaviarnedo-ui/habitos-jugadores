@@ -131,6 +131,27 @@ body {
   width: auto;
   flex-shrink: 0;
 }
+.topbar-avatar-img {
+  height: 34px;
+  width: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+.topbar-avatar-fallback {
+  height: 34px;
+  width: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--navy), var(--gold));
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
 .topbar-titles { min-width: 0; }
 .topbar-title {
   font-size: 1.3rem;

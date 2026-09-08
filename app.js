@@ -367,6 +367,27 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
+// Jugador: su propia foto donde iría el escudo, y el escudo pasa al hueco
+// de la derecha. Entrenador (o sin sesión): escudo a la izquierda, como
+// siempre, sin nada a la derecha.
+function renderTopbarIcons() {
+  const leftIcon = document.getElementById('topbarLeftIcon');
+  const rightIcon = document.getElementById('topbarRightIcon');
+  const player = state.session && state.session.type === 'player' ? getCurrentPlayer() : null;
+
+  if (player) {
+    leftIcon.innerHTML = player.avatarUrl
+      ? `<img src="${player.avatarUrl}" class="topbar-avatar-img" alt="">`
+      : `<span class="topbar-avatar-fallback">${initials(player.name)}</span>`;
+    rightIcon.innerHTML = '<img src="assets/escudo.png" alt="Escudo del club" class="crest-sm">';
+    rightIcon.style.display = '';
+  } else {
+    leftIcon.innerHTML = '<img src="assets/escudo.png" alt="Escudo del club" class="crest-sm">';
+    rightIcon.style.display = 'none';
+    rightIcon.innerHTML = '';
+  }
+}
+
 function render() {
   if (isPasswordRecovery) {
     showScreen('screen-login');
@@ -385,6 +406,7 @@ function render() {
   logoutBtn.style.display = state.session ? 'flex' : 'none';
   document.getElementById('bottomnavPlayer').style.display = 'none';
   document.getElementById('bottomnavCoach').style.display = 'none';
+  renderTopbarIcons();
 
   if (!state.session) {
     showScreen('screen-login');
@@ -922,8 +944,17 @@ function moodRowHtml(options, selected) {
 
 function renderWellnessCard(player) {
   const today = todayKey();
+  const section = document.getElementById('wellnessSection');
   const box = document.getElementById('wellnessBox');
   const entry = player.wellness[today] || {};
+
+  // Una vez contestadas las dos preguntas de hoy, se oculta para no
+  // estorbar -- ya cumplió su función por hoy.
+  if (entry.sleep !== undefined && entry.energy !== undefined) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
 
   box.innerHTML = `
     <p class="field-label" style="margin-bottom:8px">¿Qué tal has dormido hoy?</p>
