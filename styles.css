@@ -533,21 +533,22 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
 /* ---------- Week strip ---------- */
 
 .week-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
 }
 .week-day {
-  flex: 1 1 40px;
+  min-width: 0;
   text-align: center;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 10px 4px;
-  font-size: 0.75rem;
+  padding: 10px 2px;
+  font-size: 0.7rem;
   color: var(--ink-soft);
   cursor: pointer;
 }
+.week-day-label { display: block; }
 .week-day.selected { background: var(--blue-light); border-color: var(--blue); }
 .week-day .pct {
   display: inline-flex;

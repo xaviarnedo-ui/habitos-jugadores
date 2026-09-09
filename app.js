@@ -949,8 +949,11 @@ function renderWellnessCard(player) {
   const entry = player.wellness[today] || {};
 
   // Una vez contestadas las dos preguntas de hoy, se oculta para no
-  // estorbar -- ya cumplió su función por hoy.
-  if (entry.sleep !== undefined && entry.energy !== undefined) {
+  // estorbar -- ya cumplió su función por hoy. Ojo: en la fila de
+  // daily_checkins que trae Supabase, la pregunta sin responder llega
+  // como null (no como "ausente"), así que hay que comprobar null además
+  // de undefined -- si no, contestar solo una ya lo daba por completo.
+  if (entry.sleep != null && entry.energy != null) {
     section.style.display = 'none';
     return;
   }
@@ -1195,7 +1198,7 @@ function renderWeekStrip(player) {
     cell.className = 'week-day' + (i === 0 ? ' today' : '') + (selectedWeekDate === key ? ' selected' : '');
     const label = d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
     const tier = pctTierClass(pct);
-    cell.innerHTML = `${label}<span class="pct ${tier} mono">${pct === null ? '–' : pct + '%'}</span>`;
+    cell.innerHTML = `<span class="week-day-label">${label}</span><span class="pct ${tier} mono">${pct === null ? '–' : pct + '%'}</span>`;
     cell.onclick = () => {
       selectedWeekDate = selectedWeekDate === key ? null : key;
       renderWeekStrip(player);
