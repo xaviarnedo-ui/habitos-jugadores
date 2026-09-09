@@ -189,6 +189,7 @@ body {
   cursor: pointer;
 }
 .icon-btn:hover { background: rgba(255,255,255,0.2); }
+.icon-btn.active { background: var(--gold); border-color: var(--gold); color: #3a2c05; }
 
 .content {
   flex: 1;

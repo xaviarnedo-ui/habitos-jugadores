@@ -403,8 +403,15 @@ function render() {
     return;
   }
 
+  // Cerrar sesión: en la cabecera solo para el entrenador (el jugador la
+  // tiene en Perfil). El hueco del botón de apagar lo ocupa la campanita
+  // de notificaciones para el jugador (renderNotifyBell se encarga de
+  // mostrarla/ocultarla según soporte del navegador).
   const logoutBtn = document.getElementById('logoutBtn');
-  logoutBtn.style.display = state.session ? 'flex' : 'none';
+  logoutBtn.style.display = state.session && state.session.type === 'coach' ? 'flex' : 'none';
+  if (!state.session || state.session.type !== 'player') {
+    document.getElementById('notifyBellBtn').style.display = 'none';
+  }
   document.getElementById('bottomnavPlayer').style.display = 'none';
   document.getElementById('bottomnavCoach').style.display = 'none';
   renderTopbarIcons();
@@ -752,7 +759,7 @@ function renderPlayerToday(player) {
   renderWeightCard(player);
   renderFastingCard(player);
   renderWeekStrip(player);
-  renderNotifyBox(player);
+  renderNotifyBell(player);
 }
 
 /* ---------- PUSH NOTIFICATIONS ---------- */
@@ -763,34 +770,40 @@ async function getExistingPushSubscription() {
   return registration.pushManager.getSubscription();
 }
 
-async function renderNotifyBox(player) {
-  const box = document.getElementById('notifyBox');
-  if (!box) return;
+// Campanita en la cabecera (donde antes iba el botón de apagar para el
+// jugador): un único toque activa/desactiva los avisos, sin necesitar la
+// pestaña Perfil.
+async function renderNotifyBell(player) {
+  const btn = document.getElementById('notifyBellBtn');
+  if (!btn) return;
 
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    box.innerHTML = '<p class="hint-text">Este navegador no admite notificaciones.</p>';
+    btn.style.display = 'none';
     return;
   }
+  btn.style.display = 'flex';
+
   if (Notification.permission === 'denied') {
-    box.innerHTML = '<p class="hint-text">Has bloqueado las notificaciones para esta app. Actívalas desde los ajustes del navegador.</p>';
+    btn.textContent = '🔕';
+    btn.title = 'Has bloqueado las notificaciones para esta app. Actívalas desde los ajustes del navegador.';
+    btn.classList.remove('active');
+    btn.onclick = null;
     return;
   }
 
   const sub = await getExistingPushSubscription();
-  box.innerHTML = `
-    <p class="hint-text">Recibe un aviso cuando se acerque la hora de un hábito activado por tu entrenador.</p>
-    <button class="${sub ? 'ghost' : 'primary'}" id="notifyToggleBtn">${sub ? 'Desactivar notificaciones' : 'Activar notificaciones'}</button>
-    <p class="hint-text" id="notifyError"></p>
-  `;
-  document.getElementById('notifyToggleBtn').onclick = () => sub ? disablePush(player, sub) : enablePush(player);
+  btn.textContent = sub ? '🔔' : '🔕';
+  btn.title = sub ? 'Notificaciones activadas (toca para desactivar)' : 'Activar notificaciones';
+  btn.classList.toggle('active', !!sub);
+  btn.onclick = () => sub ? disablePush(player, sub) : enablePush(player);
 }
 
 async function enablePush(player) {
-  const errorEl = document.getElementById('notifyError');
+  const btn = document.getElementById('notifyBellBtn');
   try {
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      if (errorEl) errorEl.textContent = 'No has dado permiso para las notificaciones.';
+      if (btn) btn.title = 'No has dado permiso para las notificaciones.';
       return;
     }
     const registration = await navigator.serviceWorker.register('sw.js');
@@ -806,19 +819,19 @@ async function enablePush(player) {
       auth: json.keys.auth,
     }, { onConflict: 'endpoint' });
     if (error) {
-      if (errorEl) errorEl.textContent = 'No se pudo activar. Inténtalo de nuevo.';
+      if (btn) btn.title = 'No se pudo activar. Inténtalo de nuevo.';
       return;
     }
-    await renderNotifyBox(player);
+    await renderNotifyBell(player);
   } catch (e) {
-    if (errorEl) errorEl.textContent = 'No se pudo activar. Inténtalo de nuevo.';
+    if (btn) btn.title = 'No se pudo activar. Inténtalo de nuevo.';
   }
 }
 
 async function disablePush(player, subscription) {
   await supabase.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
   await subscription.unsubscribe();
-  await renderNotifyBox(player);
+  await renderNotifyBell(player);
 }
 
 function getPreviousWeightEntry(player, beforeDate) {
@@ -2230,12 +2243,14 @@ document.getElementById('authPasswordInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') handleAuthSubmit();
 });
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
+async function handleLogout() {
   clearFastingInterval();
   await supabase.auth.signOut();
   state.session = null;
   render();
-});
+}
+document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+document.getElementById('playerLogoutBtn').addEventListener('click', handleLogout);
 
 document.getElementById('coachDatePicker').addEventListener('change', () => {
   renderCoach();
