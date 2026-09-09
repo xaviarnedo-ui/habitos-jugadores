@@ -501,8 +501,8 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
   transition: background 0.15s, border-color 0.15s;
 }
 .habit-card.checked {
-  border-color: var(--gold);
-  background: var(--gold-light);
+  border-color: var(--win);
+  background: rgba(46, 158, 100, 0.08);
 }
 .habit-card.declined {
   border-color: var(--loss);
@@ -759,8 +759,8 @@ input[type="time"].schedule-time-input {
 
 /* ---------- Weight ---------- */
 
-.add-player-row { display: flex; gap: 8px; align-items: center; }
-.add-player-row input[type="number"] { flex: 0 1 100px; }
+.add-player-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.add-player-row input[type="number"] { flex: 1 1 100px; min-width: 0; }
 .add-player-row select { flex: 1; }
 .add-player-row button { flex-shrink: 0; }
 
@@ -773,6 +773,18 @@ input[type="time"].schedule-time-input {
 .weight-trend.up { color: var(--loss); }
 .weight-trend.down { color: var(--win); }
 .weight-trend.flat { color: var(--ink-soft); }
+
+.weight-confirmed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(46, 158, 100, 0.08);
+  border: 1px solid var(--win);
+  border-radius: 10px;
+}
+.weight-confirmed-icon { font-size: 1.1rem; flex-shrink: 0; }
+.weight-confirmed-text { flex: 1; font-size: 0.9rem; }
 
 .chart-day-labels { display: flex; margin-top: 2px; }
 .chart-day-labels span {

@@ -136,6 +136,7 @@ let addingNewPlayer = false; // Resumen, formulario "Nuevo jugador"
 let playerEmailEditError = '';
 let fastingIntervalId = null;
 let editingFastingStart = false; // player's own Hoy tab
+let editingWeight = false; // player's own Hoy tab
 let confirmingFastingEnd = false; // player's own Hoy tab
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
@@ -1002,14 +1003,41 @@ function renderWeightCard(player) {
     trendHtml = `<p class="hint-text">Último peso registrado: ${previous.kg}kg (${formatDateLabel(previous.date)})</p>`;
   }
 
+  // Ya guardado hoy y sin pedir cambiarlo: se queda fijo con una marca
+  // clara de que está hecho, en vez de un campo editable de siempre --
+  // así se ve a simple vista que ya está añadido.
+  if (current !== undefined && !editingWeight) {
+    box.innerHTML = `
+      <div class="weight-confirmed">
+        <span class="weight-confirmed-icon">✅</span>
+        <span class="weight-confirmed-text">Peso de hoy: <strong>${current}kg</strong></span>
+        <button class="ghost" id="editWeightBtn">Editar</button>
+      </div>
+      ${trendHtml}
+    `;
+    document.getElementById('editWeightBtn').onclick = () => {
+      editingWeight = true;
+      renderWeightCard(player);
+    };
+    return;
+  }
+
   box.innerHTML = `
     <div class="add-player-row">
       <input type="number" id="weightInput" step="0.1" min="0" placeholder="kg" value="${current !== undefined ? current : ''}">
       <button class="primary" id="saveWeightBtn">${current !== undefined ? 'Actualizar' : 'Guardar'}</button>
+      ${current !== undefined ? '<button class="ghost" id="cancelWeightBtn">Cancelar</button>' : ''}
     </div>
     <p class="hint-text" id="weightError"></p>
     ${trendHtml}
   `;
+
+  if (current !== undefined) {
+    document.getElementById('cancelWeightBtn').onclick = () => {
+      editingWeight = false;
+      renderWeightCard(player);
+    };
+  }
 
   document.getElementById('saveWeightBtn').onclick = async () => {
     const input = document.getElementById('weightInput');
@@ -1025,6 +1053,7 @@ function renderWeightCard(player) {
       { onConflict: 'player_id,date' }
     );
     if (error) { errorEl.textContent = 'No se pudo guardar. Inténtalo de nuevo.'; return; }
+    editingWeight = false;
     await refreshAndRender();
   };
 }
