@@ -612,6 +612,54 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
 }
 .hoy-chip.empty { opacity: 0.4; font-weight: 600; }
 
+/* ---------- Semana: tabla semanal por jugador ---------- */
+.week-matrix-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table.week-matrix {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 0.82rem;
+}
+table.week-matrix th,
+table.week-matrix td {
+  padding: 7px 9px;
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.week-matrix thead th {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--ink-soft);
+  border-bottom: 2px solid var(--line);
+}
+table.week-matrix thead th:first-child,
+table.week-matrix tbody th.wk-daycell {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+}
+table.week-matrix tbody th.wk-daycell { font-weight: 700; }
+table.week-matrix tbody tr:last-child th,
+table.week-matrix tbody tr:last-child td { border-bottom: none; }
+table.week-matrix tbody tr.is-today td,
+table.week-matrix tbody tr.is-today th.wk-daycell { background: var(--blue-light); }
+table.week-matrix tbody tr.is-future td,
+table.week-matrix tbody tr.is-future th.wk-daycell { opacity: 0.45; }
+.week-matrix .cell-ok,
+.week-matrix .cell-bad { font-size: 0.95rem; font-weight: 700; }
+.week-matrix .wk-empty { color: var(--ink-soft); opacity: 0.35; }
+.week-matrix .wk-na { background: var(--bg); }
+.week-matrix .wk-pct { font-weight: 800; font-variant-numeric: tabular-nums; }
+.week-matrix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+
 /* ---------- Admin / list rows ---------- */
 
 .admin-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }

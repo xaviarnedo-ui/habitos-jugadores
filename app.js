@@ -131,8 +131,8 @@ let selectedWeekDate = null; // date string, player's own Semana tab
 let editingPlayerEmail = null; // player id
 let editingHabitId = null; // habit id, Hábitos tab
 let assigningHabitId = null; // habit id, panel "Asignar" de la batería de hábitos
-let selectedPlayerId = null; // player id, fila abierta en el acordeón (Resumen/Hábitos/Tips)
-let addingNewPlayer = false; // Resumen, formulario "Nuevo jugador"
+let selectedPlayerId = null; // player id, fila abierta en el acordeón (Semana/Hábitos/Tips)
+let addingNewPlayer = false; // Semana, formulario "Nuevo jugador"
 let playerEmailEditError = '';
 let fastingIntervalId = null;
 let editingFastingStart = false; // player's own Hoy tab
@@ -140,10 +140,10 @@ let editingWeight = false; // player's own Hoy tab
 let confirmingFastingEnd = false; // player's own Hoy tab
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
-let currentCoachTab = 'hoy'; // 'hoy' | 'resumen' | 'habitos' | 'tips' | 'avisos' | 'ajustes'
+let currentCoachTab = 'hoy'; // 'hoy' | 'semana' | 'habitos' | 'tips' | 'avisos' | 'ajustes'
 
 const PLAYER_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', tips: 'TIPS', perfil: 'PERFIL' };
-const COACH_TAB_TITLES = { hoy: 'HOY', resumen: 'RESUMEN', habitos: 'HÁBITOS', tips: 'TIPS', avisos: 'AVISOS', ajustes: 'AJUSTES' };
+const COACH_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', habitos: 'HÁBITOS', tips: 'TIPS', avisos: 'AVISOS', ajustes: 'AJUSTES' };
 
 function showTab(role, tabName) {
   const prefix = role === 'player' ? 'tab-player-' : 'tab-coach-';
@@ -1312,7 +1312,7 @@ function computeCoachAlerts() {
   const alerts = [];
   state.players.forEach(p => {
     if (!p.authId) {
-      alerts.push({ playerId: p.id, playerName: p.name, icon: '✉️', message: 'Todavía no se ha registrado en la app.', tab: 'resumen' });
+      alerts.push({ playerId: p.id, playerName: p.name, icon: '✉️', message: 'Todavía no se ha registrado en la app.', tab: 'semana' });
     }
     const assignedAnyDay = new Set();
     WEEKDAYS.forEach(d => (p.habitsByDay[d.key] || []).forEach(id => assignedAnyDay.add(id)));
@@ -1321,7 +1321,7 @@ function computeCoachAlerts() {
     } else {
       const summary = computeWeeklySummary(p);
       if (summary.totalAssigned >= 3 && summary.pct !== null && summary.pct < LOW_COMPLETION_THRESHOLD) {
-        alerts.push({ playerId: p.id, playerName: p.name, icon: '📉', message: `Cumplimiento bajo esta semana: ${summary.pct}%.`, tab: 'resumen' });
+        alerts.push({ playerId: p.id, playerName: p.name, icon: '📉', message: `Cumplimiento bajo esta semana: ${summary.pct}%.`, tab: 'semana' });
       }
     }
   });
@@ -1401,7 +1401,7 @@ function hoyRosterMetaHtml(p, date) {
 }
 
 // Al abrir un jugador en Hoy: solo sus hábitos de ese día y el cumplimiento
-// (el resto -- tendencias, gráficas, cuenta -- vive en la pestaña Resumen).
+// (la semana completa vive en la pestaña Semana).
 function buildPlayerDayPanel(p, date) {
   const wrap = document.createElement('div');
   const myHabits = habitsForOnDate(p, date);
@@ -1474,7 +1474,7 @@ function renderCoach() {
 
   renderHoyTab(date);
   renderAdminHabits();
-  renderResumenTab(date);
+  renderSemanaTab(date);
   renderHabitosAssignSection();
   renderTipsTab();
   renderNoticesTab();
@@ -1577,89 +1577,154 @@ function buildHabitScheduleGrid(p) {
   return wrap;
 }
 
-function buildPlayerSummaryPanel(p, date) {
+function buildPlayerWeekPanel(p, date) {
   const wrap = document.createElement('div');
 
-  const myHabits = habitsForOnDate(p, date);
-  const rec = (state.records[date] && state.records[date][p.id]) || {};
+  const monday = getMondayOfWeek(date);
+  const dayKeys = [];
+  const cur = new Date(monday + 'T00:00:00');
+  for (let i = 0; i < 7; i++) { dayKeys.push(todayKey(cur)); cur.setDate(cur.getDate() + 1); }
+  const today = todayKey();
 
-  const dayTitle = document.createElement('div');
-  dayTitle.className = 'hint-text';
-  dayTitle.style.margin = '0 0 8px';
-  dayTitle.textContent = `Hábitos del ${formatDateLabel(date)}`;
-  wrap.appendChild(dayTitle);
+  // Hábitos que el jugador tiene asignados algún día de la semana.
+  const weekHabits = state.habits.filter(h =>
+    WEEKDAYS.some(d => (p.habitsByDay[d.key] || []).includes(h.id))
+  );
 
-  if (myHabits.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'empty-state';
-    empty.textContent = 'Este jugador no tiene hábitos asignados este día.';
-    wrap.appendChild(empty);
-  } else {
-    const list = document.createElement('div');
-    list.className = 'admin-list';
-    myHabits.forEach(h => {
-      const answer = rec[h.id];
-      const mark = answer === true ? '✓' : answer === false ? '✗' : '–';
-      const cls = answer === true ? 'cell-ok' : answer === false ? 'cell-bad' : 'cell-no';
-      const row = document.createElement('div');
-      row.className = 'detail-habit-row';
-      row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${cls}">${mark}</span>`;
-      list.appendChild(row);
+  const title = document.createElement('div');
+  title.className = 'hint-text';
+  title.style.margin = '0 0 10px';
+  title.textContent = `Semana del ${formatDateLabel(monday)} al ${formatDateLabel(dayKeys[6])}`;
+  wrap.appendChild(title);
+
+  const td = (txt, cls, titleAttr) => {
+    const c = document.createElement('td');
+    c.textContent = txt;
+    if (cls) c.className = cls;
+    if (titleAttr) c.title = titleAttr;
+    return c;
+  };
+
+  const scroll = document.createElement('div');
+  scroll.className = 'week-matrix-wrap';
+  const table = document.createElement('table');
+  table.className = 'week-matrix';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  [['Día', ''], ['⚖️', 'Peso'], ['😴', 'Sueño'], ['🔋', 'Energía'], ['⏳', 'Ayuno']].forEach(([txt, ttl]) => {
+    const th = document.createElement('th');
+    th.textContent = txt;
+    if (ttl) th.title = ttl;
+    headRow.appendChild(th);
+  });
+  weekHabits.forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h.emoji;
+    th.title = h.label;
+    headRow.appendChild(th);
+  });
+  const pctTh = document.createElement('th');
+  pctTh.textContent = '%';
+  pctTh.title = 'Cumplimiento del día';
+  headRow.appendChild(pctTh);
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  let weekAssigned = 0;
+  let weekDone = 0;
+
+  dayKeys.forEach((dk, i) => {
+    const wd = WEEKDAYS[i];
+    const tr = document.createElement('tr');
+    if (dk === today) tr.className = 'is-today';
+    else if (dk > today) tr.className = 'is-future';
+
+    const dObj = new Date(dk + 'T00:00:00');
+    const dayCell = document.createElement('th');
+    dayCell.className = 'wk-daycell';
+    dayCell.textContent = `${wd.short} ${dObj.getDate()}`;
+    dayCell.title = formatDateLabel(dk);
+    tr.appendChild(dayCell);
+
+    const kg = p.weightLog[dk];
+    tr.appendChild(td(kg !== undefined ? String(kg) : '·', kg === undefined ? 'wk-empty' : ''));
+
+    const wln = p.wellness[dk] || {};
+    const sOpt = SLEEP_OPTIONS.find(o => o.value === wln.sleep);
+    tr.appendChild(td(sOpt ? sOpt.emoji : '·', sOpt ? '' : 'wk-empty', sOpt ? sOpt.label : ''));
+    const eOpt = ENERGY_OPTIONS.find(o => o.value === wln.energy);
+    tr.appendChild(td(eOpt ? eOpt.emoji : '·', eOpt ? '' : 'wk-empty', eOpt ? eOpt.label : ''));
+
+    const hist = p.fasting.history.find(x => x.date === dk);
+    if (hist) {
+      const goalOk = hist.hours >= (p.fasting.goalHours || 16);
+      tr.appendChild(td(`${hist.hours}h`, goalOk ? 'cell-ok' : '', `Ayuno ${hist.hours}h`));
+    } else if (dk === today && p.fasting.activeStart) {
+      tr.appendChild(td('⏳', '', 'Ayuno en curso'));
+    } else {
+      tr.appendChild(td('·', 'wk-empty'));
+    }
+
+    const assignedThatDay = p.habitsByDay[wd.key] || [];
+    const recDay = (state.records[dk] && state.records[dk][p.id]) || {};
+    let dayAssigned = 0;
+    let dayDone = 0;
+    weekHabits.forEach(h => {
+      if (!assignedThatDay.includes(h.id)) { tr.appendChild(td('', 'wk-na')); return; }
+      dayAssigned++;
+      const ans = recDay[h.id];
+      if (ans === true) dayDone++;
+      const mark = ans === true ? '✓' : ans === false ? '✗' : '·';
+      const cls = ans === true ? 'cell-ok' : ans === false ? 'cell-bad' : 'wk-empty';
+      tr.appendChild(td(mark, cls));
     });
-    wrap.appendChild(list);
+    // Los días futuros no cuentan para el % (todavía no se pueden cumplir).
+    const isFutureDay = dk > today;
+    if (!isFutureDay) {
+      weekAssigned += dayAssigned;
+      weekDone += dayDone;
+    }
+
+    const dayPct = (dayAssigned && !isFutureDay) ? Math.round((dayDone / dayAssigned) * 100) : null;
+    tr.appendChild(td(dayPct === null ? '·' : dayPct + '%', dayPct === null ? 'wk-empty' : 'wk-pct'));
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  scroll.appendChild(table);
+  wrap.appendChild(scroll);
+
+  if (weekHabits.length > 0) {
+    const legend = document.createElement('div');
+    legend.className = 'week-matrix-legend';
+    legend.innerHTML = weekHabits.map(h => `<span>${h.emoji} ${h.label}</span>`).join('');
+    wrap.appendChild(legend);
+  } else {
+    const note = document.createElement('p');
+    note.className = 'hint-text';
+    note.style.margin = '8px 0 0';
+    note.textContent = 'Este jugador todavía no tiene hábitos asignados.';
+    wrap.appendChild(note);
   }
 
-  const lines = [];
-  if (p.fasting.activeStart && date === todayKey()) {
-    const elapsedH = ((Date.now() - new Date(p.fasting.activeStart).getTime()) / 3600000).toFixed(1);
-    lines.push(`🕐 Ayuno en curso: ${elapsedH}h (objetivo ${p.fasting.goalHours}h)`);
-  }
-  const histEntry = p.fasting.history.find(h => h.date === date);
-  if (histEntry) lines.push(`✅ Ayuno completado ese día: ${histEntry.hours}h`);
-  if (p.weightLog[date] !== undefined) lines.push(`⚖️ Peso: ${p.weightLog[date]}kg`);
-  if (lines.length > 0) {
-    const info = document.createElement('div');
-    info.className = 'hint-text';
-    info.style.margin = '10px 0 0';
-    info.innerHTML = lines.join('<br>');
-    wrap.appendChild(info);
-  }
-
-  const summary = computeWeeklySummary(p);
-  const weekTitle = document.createElement('div');
-  weekTitle.className = 'section-title';
-  weekTitle.style.margin = '20px 0 8px';
-  weekTitle.textContent = `Esta semana (${summary.weekStartLabel} – ${summary.weekEndLabel})`;
-  wrap.appendChild(weekTitle);
-
+  const weekPct = weekAssigned ? Math.round((weekDone / weekAssigned) * 100) : null;
   const weekHero = document.createElement('div');
   weekHero.className = 'card stat-hero';
-  weekHero.style.margin = '0 0 14px';
-  weekHero.innerHTML = `<div class="stat-hero-value display mono">${summary.pct === null ? '–' : summary.pct + '%'}</div><div class="stat-hero-label">cumplimiento esta semana</div>`;
+  weekHero.style.margin = '16px 0 0';
+  weekHero.innerHTML = `<div class="stat-hero-value display mono">${weekPct === null ? '–' : weekPct + '%'}</div><div class="stat-hero-label">cumplimiento de la semana</div>`;
   wrap.appendChild(weekHero);
 
-  const chartsTitle1 = document.createElement('div');
-  chartsTitle1.className = 'section-title';
-  chartsTitle1.style.margin = '20px 0 6px';
-  chartsTitle1.textContent = `Peso · 7 días hasta ${formatDateLabel(date)}`;
-  wrap.appendChild(chartsTitle1);
-  const weightCard = document.createElement('div');
-  weightCard.className = 'card';
-  weightCard.innerHTML = weightChartHtml(p, date);
-  wrap.appendChild(weightCard);
+  wrap.appendChild(buildPlayerAccountSection(p));
+  return wrap;
+}
 
-  const chartsTitle2 = document.createElement('div');
-  chartsTitle2.className = 'section-title';
-  chartsTitle2.style.margin = '20px 0 6px';
-  chartsTitle2.textContent = `Ayuno · 7 días hasta ${formatDateLabel(date)}`;
-  wrap.appendChild(chartsTitle2);
-  const fastCard = document.createElement('div');
-  fastCard.className = 'card';
-  fastCard.innerHTML = fastingChartHtml(p, date);
-  wrap.appendChild(fastCard);
+// Cuenta del jugador (foto, email, baja): se muestra al final del panel de
+// Semana, discreta a propósito -- aquí vive la acción de eliminar jugador.
+function buildPlayerAccountSection(p) {
+  const wrap = document.createDocumentFragment();
 
-  // Cuenta: identidad y baja del jugador. Se queda al final y discreto a
-  // propósito -- lo importante de esta pestaña es el resumen de arriba.
   const hr = document.createElement('div');
   hr.className = 'panel-divider';
   wrap.appendChild(hr);
@@ -1880,7 +1945,7 @@ function buildNutritionPanel(p) {
   return wrap;
 }
 
-// Acordeón de jugadores reutilizado por Resumen, Hábitos y Tips: misma lista,
+// Acordeón de jugadores reutilizado por Semana, Hábitos y Tips: misma lista,
 // mismo buscador, mismo toggle -- cada pestaña solo aporta qué se ve al
 // desplegar una fila (buildDetailFn) y qué texto corto va bajo el nombre.
 function renderPlayerAccordionList(containerId, searchInputId, buildDetailFn, metaHtmlFn) {
@@ -1926,16 +1991,13 @@ function renderPlayerAccordionList(containerId, searchInputId, buildDetailFn, me
   });
 }
 
-function renderResumenTab(date) {
+function renderSemanaTab(date) {
   renderPlayerAccordionList(
-    'resumenPlayerList', 'resumenSearchInput',
-    p => buildPlayerSummaryPanel(p, date),
+    'semanaPlayerList', 'semanaSearchInput',
+    p => buildPlayerWeekPanel(p, date),
     p => {
-      const myHabits = habitsForOnDate(p, date);
-      const rec = (state.records[date] && state.records[date][p.id]) || {};
-      const done = myHabits.filter(h => rec[h.id]).length;
-      const pct = myHabits.length ? Math.round((done / myHabits.length) * 100) : null;
-      return `${pct === null ? '–' : pct + '%'} hoy${p.authId ? '' : ' · sin registrar'}`;
+      const s = computeWeeklySummary(p);
+      return `${s.pct === null ? '–' : s.pct + '%'} esta semana${p.authId ? '' : ' · sin registrar'}`;
     }
   );
   document.getElementById('toggleAddPlayerBtn').style.display = addingNewPlayer ? 'none' : 'block';
@@ -2268,7 +2330,7 @@ function buildHabitAssignPlayersPanel(h) {
   if (state.players.length === 0) {
     wrap.className = 'hint-text';
     wrap.style.margin = '0';
-    wrap.textContent = 'Añade jugadores primero, en la pestaña Resumen.';
+    wrap.textContent = 'Añade jugadores primero, en la pestaña Semana.';
     return wrap;
   }
   wrap.className = 'assign-player-list';
@@ -2363,7 +2425,7 @@ document.getElementById('cancelAddPlayerBtn').addEventListener('click', () => {
   document.getElementById('adminAddPlayerError').textContent = '';
   renderCoach();
 });
-['hoySearchInput', 'resumenSearchInput', 'habitosSearchInput', 'tipsSearchInput', 'avisosSearchInput'].forEach(id => {
+['hoySearchInput', 'semanaSearchInput', 'habitosSearchInput', 'tipsSearchInput', 'avisosSearchInput'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
     renderCoach();
   });
