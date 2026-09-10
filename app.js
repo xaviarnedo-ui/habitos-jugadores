@@ -140,10 +140,10 @@ let editingWeight = false; // player's own Hoy tab
 let confirmingFastingEnd = false; // player's own Hoy tab
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
-let currentCoachTab = 'inicio'; // 'inicio' | 'resumen' | 'habitos' | 'tips' | 'avisos' | 'ajustes'
+let currentCoachTab = 'hoy'; // 'hoy' | 'resumen' | 'habitos' | 'tips' | 'avisos' | 'ajustes'
 
 const PLAYER_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', tips: 'TIPS', perfil: 'PERFIL' };
-const COACH_TAB_TITLES = { inicio: 'INICIO', resumen: 'RESUMEN', habitos: 'HÁBITOS', tips: 'TIPS', avisos: 'AVISOS', ajustes: 'AJUSTES' };
+const COACH_TAB_TITLES = { hoy: 'HOY', resumen: 'RESUMEN', habitos: 'HÁBITOS', tips: 'TIPS', avisos: 'AVISOS', ajustes: 'AJUSTES' };
 
 function showTab(role, tabName) {
   const prefix = role === 'player' ? 'tab-player-' : 'tab-coach-';
@@ -1360,10 +1360,103 @@ function computeTeamPct(date) {
   return teamPossible ? Math.round((teamDoneSum / teamPossible) * 100) : null;
 }
 
-function renderInicioTab(date) {
+function renderHoyTab(date) {
   const teamPct = computeTeamPct(date);
   document.getElementById('teamPct').textContent = teamPct === null ? '—' : teamPct + '%';
   renderAttentionPanel();
+  renderHoyRoster(date);
+}
+
+// Chip corto para la fila del jugador en la pestaña Hoy (peso / sueño /
+// energía / ayuno de ese día). `empty` lo atenúa cuando no hay dato.
+function hoyChipHtml(icon, text, empty) {
+  return `<span class="hoy-chip${empty ? ' empty' : ''}">${icon} ${text}</span>`;
+}
+
+function hoyRosterMetaHtml(p, date) {
+  const isToday = date === todayKey();
+  const chips = [];
+
+  const kg = p.weightLog[date];
+  chips.push(hoyChipHtml('⚖️', kg !== undefined ? kg + ' kg' : '—', kg === undefined));
+
+  const wellness = p.wellness[date] || {};
+  const sleepOpt = SLEEP_OPTIONS.find(o => o.value === wellness.sleep);
+  chips.push(hoyChipHtml('😴', sleepOpt ? sleepOpt.label : '—', !sleepOpt));
+
+  const energyOpt = ENERGY_OPTIONS.find(o => o.value === wellness.energy);
+  chips.push(hoyChipHtml('🔋', energyOpt ? energyOpt.label : '—', !energyOpt));
+
+  const histEntry = p.fasting.history.find(h => h.date === date);
+  if (isToday && p.fasting.activeStart) {
+    const elapsedH = ((Date.now() - new Date(p.fasting.activeStart).getTime()) / 3600000).toFixed(1);
+    chips.push(hoyChipHtml('⏳', `${elapsedH}h en curso`, false));
+  } else if (histEntry) {
+    chips.push(hoyChipHtml('✅', `${histEntry.hours}h`, false));
+  } else {
+    chips.push(hoyChipHtml('⏳', '—', true));
+  }
+
+  return `<div class="hoy-chips">${chips.join('')}</div>`;
+}
+
+// Al abrir un jugador en Hoy: solo sus hábitos de ese día y el cumplimiento
+// (el resto -- tendencias, gráficas, cuenta -- vive en la pestaña Resumen).
+function buildPlayerDayPanel(p, date) {
+  const wrap = document.createElement('div');
+  const myHabits = habitsForOnDate(p, date);
+  const rec = (state.records[date] && state.records[date][p.id]) || {};
+
+  const done = myHabits.filter(h => rec[h.id] === true).length;
+  const answered = myHabits.filter(h => rec[h.id] !== undefined).length;
+  const pct = myHabits.length ? Math.round((done / myHabits.length) * 100) : null;
+
+  const hero = document.createElement('div');
+  hero.className = 'card stat-hero';
+  hero.style.margin = '0 0 12px';
+  hero.innerHTML = `<div class="stat-hero-value display mono">${pct === null ? '–' : pct + '%'}</div><div class="stat-hero-label">cumplimiento del ${formatDateLabel(date)}</div>`;
+  wrap.appendChild(hero);
+
+  if (myHabits.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'Sin hábitos asignados este día.';
+    wrap.appendChild(empty);
+    return wrap;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'admin-list';
+  list.style.marginBottom = '0';
+  myHabits.forEach(h => {
+    const answer = rec[h.id];
+    const mark = answer === true ? '✓' : answer === false ? '✗' : '–';
+    const cls = answer === true ? 'cell-ok' : answer === false ? 'cell-bad' : 'cell-no';
+    const row = document.createElement('div');
+    row.className = 'detail-habit-row';
+    row.innerHTML = `<span>${h.emoji}</span><span class="flex1">${h.label}</span><span class="${cls}">${mark}</span>`;
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+
+  if (answered < myHabits.length) {
+    const note = document.createElement('p');
+    note.className = 'hint-text';
+    note.style.margin = '10px 0 0';
+    const pend = myHabits.length - answered;
+    note.textContent = `${pend} sin responder todavía.`;
+    wrap.appendChild(note);
+  }
+
+  return wrap;
+}
+
+function renderHoyRoster(date) {
+  renderPlayerAccordionList(
+    'hoyPlayerList', 'hoySearchInput',
+    p => buildPlayerDayPanel(p, date),
+    p => hoyRosterMetaHtml(p, date)
+  );
 }
 
 function renderCoach() {
@@ -1379,7 +1472,7 @@ function renderCoach() {
   document.getElementById('settingsUnregisteredCount').textContent = String(unregisteredCount);
   document.getElementById('settingsHabitCount').textContent = String(state.habits.length);
 
-  renderInicioTab(date);
+  renderHoyTab(date);
   renderAdminHabits();
   renderResumenTab(date);
   renderHabitosAssignSection();
@@ -2270,7 +2363,7 @@ document.getElementById('cancelAddPlayerBtn').addEventListener('click', () => {
   document.getElementById('adminAddPlayerError').textContent = '';
   renderCoach();
 });
-['resumenSearchInput', 'habitosSearchInput', 'tipsSearchInput', 'avisosSearchInput'].forEach(id => {
+['hoySearchInput', 'resumenSearchInput', 'habitosSearchInput', 'tipsSearchInput', 'avisosSearchInput'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
     renderCoach();
   });

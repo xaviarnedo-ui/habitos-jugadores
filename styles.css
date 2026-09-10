@@ -595,6 +595,23 @@ button.danger:hover { background: rgba(214, 83, 74, 0.1); }
 .cell-no { color: var(--ink-soft); opacity: 0.5; }
 .cell-bad { color: var(--loss); font-size: 1.1rem; }
 
+/* Chips de la fila del jugador en la pestaña Hoy (peso/sueño/energía/ayuno) */
+.hoy-chips { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; }
+.hoy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.hoy-chip.empty { opacity: 0.4; font-weight: 600; }
+
 /* ---------- Admin / list rows ---------- */
 
 .admin-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
