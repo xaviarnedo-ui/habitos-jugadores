@@ -183,6 +183,15 @@
           </div>
         </div>
 
+        <div class="tab-content" data-tab="historial" id="tab-coach-historial">
+          <div class="section-title">Jugadores</div>
+          <p class="hint-text">Abre un jugador para ver el cumplimiento de cada semana anterior. Toca una semana para ver el detalle día a día.</p>
+          <div class="field-row" style="margin-top:0">
+            <input type="search" id="historialSearchInput" placeholder="Buscar jugador...">
+          </div>
+          <div class="admin-list" id="historialPlayerList"></div>
+        </div>
+
         <div class="tab-content" data-tab="habitos" id="tab-coach-habitos">
           <div class="section-title">Jugadores</div>
           <p class="hint-text">Elige un jugador para ajustar qué días, hora y aviso de los hábitos que ya tiene asignados, y su objetivo de ayuno. Para asignarle un hábito nuevo, hazlo desde la batería de abajo.</p>
@@ -261,6 +270,7 @@
     <nav class="bottomnav" id="bottomnavCoach" style="display:none">
       <button class="nav-item active" data-tab="hoy"><span class="nav-icon">🏠</span><span class="nav-label">Hoy</span></button>
       <button class="nav-item" data-tab="semana"><span class="nav-icon">📅</span><span class="nav-label">Semana</span></button>
+      <button class="nav-item" data-tab="historial"><span class="nav-icon">📜</span><span class="nav-label">Historial</span></button>
       <button class="nav-item" data-tab="habitos"><span class="nav-icon">✅</span><span class="nav-label">Hábitos</span></button>
       <button class="nav-item" data-tab="tips"><span class="nav-icon">🍎</span><span class="nav-label">Tips</span></button>
       <button class="nav-item" data-tab="avisos"><span class="nav-icon">📌</span><span class="nav-label">Avisos</span></button>

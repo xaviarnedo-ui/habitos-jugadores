@@ -660,6 +660,43 @@ table.week-matrix tbody tr.is-future th.wk-daycell { opacity: 0.45; }
   color: var(--ink-soft);
 }
 
+/* ---------- Historial: semanas anteriores por jugador ---------- */
+.history-week-list { display: flex; flex-direction: column; gap: 8px; }
+.history-week-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.history-week-row:hover { border-color: var(--blue); }
+.history-week-row.active { background: var(--blue-light); border-color: var(--blue); }
+.history-week-label { flex: 1; font-weight: 700; font-size: 0.88rem; }
+.history-week-chevron { color: var(--ink-soft); font-size: 0.9rem; flex-shrink: 0; }
+.history-week-detail { margin: -2px 0 8px; }
+
+.pct-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: var(--ink-soft);
+  flex-shrink: 0;
+}
+.pct-chip.win { background: var(--win); }
+.pct-chip.mid { background: var(--gold); color: #3a2c05; }
+.pct-chip.loss { background: var(--loss); }
+.pct-chip.empty { background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
+
 /* ---------- Admin / list rows ---------- */
 
 .admin-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }

@@ -140,10 +140,10 @@ let editingWeight = false; // player's own Hoy tab
 let confirmingFastingEnd = false; // player's own Hoy tab
 let currentAuthMode = 'signin';
 let currentPlayerTab = 'hoy'; // 'hoy' | 'semana' | 'perfil'
-let currentCoachTab = 'hoy'; // 'hoy' | 'semana' | 'habitos' | 'tips' | 'avisos' | 'ajustes'
+let currentCoachTab = 'hoy'; // 'hoy' | 'semana' | 'historial' | 'habitos' | 'tips' | 'avisos' | 'ajustes'
 
 const PLAYER_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', tips: 'TIPS', perfil: 'PERFIL' };
-const COACH_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', habitos: 'HÁBITOS', tips: 'TIPS', avisos: 'AVISOS', ajustes: 'AJUSTES' };
+const COACH_TAB_TITLES = { hoy: 'HOY', semana: 'SEMANA', historial: 'HISTORIAL', habitos: 'HÁBITOS', tips: 'TIPS', avisos: 'AVISOS', ajustes: 'AJUSTES' };
 
 function showTab(role, tabName) {
   const prefix = role === 'player' ? 'tab-player-' : 'tab-coach-';
@@ -1475,6 +1475,7 @@ function renderCoach() {
   renderHoyTab(date);
   renderAdminHabits();
   renderSemanaTab(date);
+  renderHistorialTab();
   renderHabitosAssignSection();
   renderTipsTab();
   renderNoticesTab();
@@ -1577,7 +1578,9 @@ function buildHabitScheduleGrid(p) {
   return wrap;
 }
 
-function buildPlayerWeekPanel(p, date) {
+// Tabla semanal (día a día) de un jugador: la usan tanto Semana (semana
+// actual) como Historial (una semana pasada cualquiera), sin la cuenta.
+function buildWeekMatrixSection(p, date) {
   const wrap = document.createElement('div');
 
   const monday = getMondayOfWeek(date);
@@ -1716,6 +1719,12 @@ function buildPlayerWeekPanel(p, date) {
   weekHero.innerHTML = `<div class="stat-hero-value display mono">${weekPct === null ? '–' : weekPct + '%'}</div><div class="stat-hero-label">cumplimiento de la semana</div>`;
   wrap.appendChild(weekHero);
 
+  return wrap;
+}
+
+function buildPlayerWeekPanel(p, date) {
+  const wrap = document.createElement('div');
+  wrap.appendChild(buildWeekMatrixSection(p, date));
   wrap.appendChild(buildPlayerAccountSection(p));
   return wrap;
 }
@@ -2002,6 +2011,122 @@ function renderSemanaTab(date) {
   );
   document.getElementById('toggleAddPlayerBtn').style.display = addingNewPlayer ? 'none' : 'block';
   document.getElementById('addPlayerForm').style.display = addingNewPlayer ? 'block' : 'none';
+}
+
+/* ---------- Historial: semanas anteriores por jugador ---------- */
+
+// Todas las fechas con algún dato de este jugador (peso, sueño/energía,
+// ayuno completado o un hábito marcado), para saber desde cuándo hay
+// historial real y no listar semanas vacías de antes de usar la app.
+function collectPlayerDataDates(p) {
+  const dates = new Set();
+  Object.keys(state.records).forEach(date => {
+    if (state.records[date] && state.records[date][p.id]) dates.add(date);
+  });
+  Object.keys(p.weightLog).forEach(d => dates.add(d));
+  Object.keys(p.wellness).forEach(d => dates.add(d));
+  p.fasting.history.forEach(h => dates.add(h.date));
+  return dates;
+}
+
+// Lunes de cada semana anterior a la actual con algún dato, de más
+// reciente a más antigua.
+function pastWeekMondaysWithData(p) {
+  const dates = collectPlayerDataDates(p);
+  if (dates.size === 0) return [];
+  const earliestMonday = getMondayOfWeek([...dates].sort()[0]);
+  const thisMonday = getMondayOfWeek(todayKey());
+
+  const mondays = [];
+  let cursor = dateDaysBefore(thisMonday, 7);
+  while (cursor >= earliestMonday) {
+    mondays.push(cursor);
+    cursor = dateDaysBefore(cursor, 7);
+  }
+  return mondays;
+}
+
+function computeWeekPct(p, monday) {
+  let assigned = 0;
+  let done = 0;
+  const cur = new Date(monday + 'T00:00:00');
+  for (let i = 0; i < 7; i++) {
+    const dk = todayKey(cur);
+    const ids = p.habitsByDay[WEEKDAYS[i].key] || [];
+    const rec = (state.records[dk] && state.records[dk][p.id]) || {};
+    ids.forEach(hid => { assigned++; if (rec[hid]) done++; });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return assigned ? Math.round((done / assigned) * 100) : null;
+}
+
+function weekRangeShortLabel(monday) {
+  const start = new Date(monday + 'T00:00:00');
+  const end = new Date(monday + 'T00:00:00');
+  end.setDate(end.getDate() + 6);
+  const fmt = d => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', '');
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+let selectedHistoryWeekMonday = null; // lunes de la semana abierta en Historial
+let historyPanelPlayerId = null; // para reiniciar la semana abierta al cambiar de jugador
+
+function buildPlayerHistoryPanel(p) {
+  const wrap = document.createElement('div');
+  if (historyPanelPlayerId !== p.id) {
+    historyPanelPlayerId = p.id;
+    selectedHistoryWeekMonday = null;
+  }
+
+  const mondays = pastWeekMondaysWithData(p);
+  if (mondays.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'Todavía no hay semanas anteriores registradas para este jugador.';
+    wrap.appendChild(empty);
+    return wrap;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'history-week-list';
+  mondays.forEach(monday => {
+    const isOpen = selectedHistoryWeekMonday === monday;
+    const pct = computeWeekPct(p, monday);
+    const tier = pctTierClass(pct);
+
+    const row = document.createElement('div');
+    row.className = 'history-week-row' + (isOpen ? ' active' : '');
+    row.innerHTML = `
+      <span class="history-week-label">${weekRangeShortLabel(monday)}</span>
+      <span class="pct-chip ${tier}">${pct === null ? '–' : pct + '%'}</span>
+      <span class="history-week-chevron">${isOpen ? '▴' : '▾'}</span>
+    `;
+    row.onclick = () => {
+      selectedHistoryWeekMonday = isOpen ? null : monday;
+      renderCoach();
+    };
+    list.appendChild(row);
+
+    if (isOpen) {
+      const detail = document.createElement('div');
+      detail.className = 'player-accordion-detail history-week-detail';
+      detail.appendChild(buildWeekMatrixSection(p, monday));
+      list.appendChild(detail);
+    }
+  });
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function renderHistorialTab() {
+  renderPlayerAccordionList(
+    'historialPlayerList', 'historialSearchInput',
+    p => buildPlayerHistoryPanel(p),
+    p => {
+      const n = pastWeekMondaysWithData(p).length;
+      return n === 0 ? 'Sin semanas anteriores' : `${n} semana${n === 1 ? '' : 's'} anterior${n === 1 ? '' : 'es'}`;
+    }
+  );
 }
 
 function renderHabitosAssignSection() {
@@ -2425,7 +2550,7 @@ document.getElementById('cancelAddPlayerBtn').addEventListener('click', () => {
   document.getElementById('adminAddPlayerError').textContent = '';
   renderCoach();
 });
-['hoySearchInput', 'semanaSearchInput', 'habitosSearchInput', 'tipsSearchInput', 'avisosSearchInput'].forEach(id => {
+['hoySearchInput', 'semanaSearchInput', 'historialSearchInput', 'habitosSearchInput', 'tipsSearchInput', 'avisosSearchInput'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
     renderCoach();
   });
